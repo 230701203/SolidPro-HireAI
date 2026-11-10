@@ -1,0 +1,28 @@
+# Local development services. Run:  docker compose up -d
+# Postgres: localhost:5432 (user/password/db: hireai)   Mailpit inbox UI: http://localhost:8025
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: hireai
+      POSTGRES_PASSWORD: hireai
+      POSTGRES_DB: hireai
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/init-test-db.sql:/docker-entrypoint-initdb.d/init-test-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hireai -d hireai"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "1025:1025" # SMTP
+      - "8025:8025" # web inbox
+
+volumes:
+  pgdata:
