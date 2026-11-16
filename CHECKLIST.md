@@ -187,6 +187,7 @@ Status legend: ✅ done and tested · 🟡 partial · ⬜ not started
 | Candidate comparison (2 to 5) needs `view_analytics` and `review_applications`; out-of-scope applications return 404 | ✅ | backend + component tests |
 | CSV and XLSX export (bulk batches and analytics) with spreadsheet-formula neutralisation and audit entries | ✅ | backend tests |
 | In-app notification to the uploader when a bulk batch finishes (once per completion, including after a retry; no email) | ✅ | backend test |
+| In-app "Results awaiting review" reminder: one digest per reviewer (admins for everything, employees with `review_results` for their assigned openings) when a draft evaluation has waited over 24 h, at most once per 24 h, linking to Results filtered to "In review"; no applicant details in the text | ✅ | backend tests |
 | Printable analytics page (browser "Save as PDF") | 🟡 | see limitations |
 | Migration 0007 with query indexes for analytics and bulk tables; `alembic check` clean | ✅ | up/down/up + check |
 | Route security sweep: every API route is requested without a login and must not answer 200 (except documented public routes) | ✅ | backend test |
@@ -203,6 +204,6 @@ Status legend: ✅ done and tested · 🟡 partial · ⬜ not started
 * Stage durations use status history; applications created before history existed (none in a fresh install) would be skipped.
 * Rate limits are in memory per process; the sweeper is single-instance (see DEPLOYMENT.md).
 * No load test, penetration test or dependency audit was performed. The route sweep checks authentication, not every authorisation rule (those are covered feature by feature).
-* Notification polish is limited to the bulk-finished notification; no other new notification types, digests or preferences were added.
+* Notification polish is limited to the bulk-finished notification and the review reminder (in-app only, no email; "waiting" means a draft evaluation, so approved-but-unreleased results are not reminded); no other new notification types, digests or preferences were added.
 * No data-retention or automatic deletion policy exists for resumes, recordings or bulk batches beyond manual deletion of a batch.
 

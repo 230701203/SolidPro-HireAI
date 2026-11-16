@@ -59,6 +59,8 @@ class Settings(BaseSettings):
     # Online testing (Phase 5)
     sweeper_enabled: bool = True  # background task that auto-submits overdue attempts and expires missed schedules
     sweeper_interval_seconds: int = 60
+    review_reminder_after_hours: int = 24  # a draft evaluation older than this counts as waiting for review
+    review_reminder_every_hours: int = 24  # at most one reminder per person in this period
     submit_grace_seconds: int = 20  # tolerated lag between the deadline and the final autosave / upload
     max_recording_mb: int = 8
 
