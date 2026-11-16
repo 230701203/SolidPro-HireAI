@@ -33,6 +33,11 @@ jobs:
       - run: pip install -r requirements-dev.txt
       - run: ruff check app tests --select E,F,W --ignore E501
       - run: pytest
+      - name: Models and migrations agree
+        run: alembic check
+        env:
+          DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/hireai_test
+          SECRET_KEY: ci-secret-key-ci-secret-key-1234567890
 
   frontend:
     runs-on: ubuntu-latest
@@ -49,3 +54,10 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t hireai-backend ./backend
+      - run: docker build -t hireai-web ./frontend

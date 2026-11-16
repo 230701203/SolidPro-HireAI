@@ -6,6 +6,7 @@ The schema is created by running the real Alembic migrations, so migrations are 
 
 import os
 import re
+import tempfile
 
 TEST_DB_URL = os.environ.get("TEST_DATABASE_URL", "postgresql+psycopg://postgres@localhost:5433/hireai_test")
 os.environ.update(
@@ -20,21 +21,23 @@ os.environ.update(
         "ADMIN_INITIAL_PASSWORD": "InitialAdmin#2026",
         "SMTP_HOST": "",
         "FRONTEND_URL": "http://localhost:5173",
+        "UPLOAD_DIR": os.path.join(tempfile.gettempdir(), "hireai-test-uploads"),
+        "MAX_UPLOAD_MB": "1",
     }
 )
 
-import pytest  # noqa: E402
-from alembic import command  # noqa: E402
-from alembic.config import Config  # noqa: E402
-from fastapi.testclient import TestClient  # noqa: E402
-from sqlalchemy import select, text  # noqa: E402
+import pytest
+from alembic import command
+from alembic.config import Config
+from fastapi.testclient import TestClient
+from sqlalchemy import select, text
 
-from app import cli  # noqa: E402
-from app.core.rate_limit import limiter  # noqa: E402
-from app.database import SessionLocal, engine  # noqa: E402
-from app.main import app  # noqa: E402
-from app.models import AccountStatus, EmailLog, Role, User  # noqa: E402
-from app.models.base import utcnow  # noqa: E402
+from app import cli
+from app.core.rate_limit import limiter
+from app.database import SessionLocal, engine
+from app.main import app
+from app.models import AccountStatus, EmailLog, Role, User
+from app.models.base import utcnow
 
 STRONG_PW = "Str0ngPassw0rd!"
 ADMIN_EMAIL = "admin@solidpro-test.com"
@@ -57,7 +60,7 @@ def _clean_db():
     with engine.begin() as conn:
         conn.execute(
             text(
-                "TRUNCATE users, permissions, company_email_domains, notifications, email_logs, audit_logs "
+                "TRUNCATE users, permissions, company_email_domains, notifications, email_logs, audit_logs, job_categories "
                 "RESTART IDENTITY CASCADE"
             )
         )
@@ -146,3 +149,92 @@ def approved_employee(admin_client: TestClient, email="emp@solidpro-test.com", p
     assert r.status_code == 200, r.text
     assert login(c, email).status_code == 200
     return c
+
+
+# ---------------------------------------------------------------- Phase 2 helpers
+
+import io
+
+
+def make_pdf(text: str = "Jane Doe. Python developer with FastAPI and PostgreSQL experience.") -> bytes:
+    import pymupdf
+
+    doc = pymupdf.open()
+    page = doc.new_page()
+    page.insert_text((72, 72), text)
+    data = doc.tobytes()
+    doc.close()
+    return data
+
+
+def make_blank_pdf() -> bytes:
+    import pymupdf
+
+    doc = pymupdf.open()
+    doc.new_page()
+    data = doc.tobytes()
+    doc.close()
+    return data
+
+
+def make_docx(text: str = "Jane Doe. Python developer.") -> bytes:
+    from docx import Document
+
+    d = Document()
+    d.add_paragraph(text)
+    buf = io.BytesIO()
+    d.save(buf)
+    return buf.getvalue()
+
+
+def category_id(c: TestClient, name: str) -> int:
+    return next(x["id"] for x in c.get("/api/job-categories").json() if x["name"] == name)
+
+
+def opening_payload(cat_id: int, **kw) -> dict:
+    base = {
+        "title": "Python Developer", "category_id": cat_id, "description": "Build backend services in Python.",
+        "required_skills": ["Python", "FastAPI"], "employment_type": "full_time", "work_mode": "hybrid", "vacancies": 2,
+    }
+    return {**base, **kw}
+
+
+def make_opening(c: TestClient, cat: str = "CAD", publish: bool = True, **kw) -> dict:
+    r = c.post("/api/job-openings", json=opening_payload(category_id(c, cat), **kw))
+    assert r.status_code == 201, r.text
+    o = r.json()
+    if publish:
+        r = c.post(f"/api/job-openings/{o['id']}/publish")
+        assert r.status_code == 200, r.text
+        o = r.json()
+    return o
+
+
+PROFILE = {
+    "city": "Chennai", "country": "India", "highest_qualification": "B.E. Computer Science", "total_experience_years": 0,
+    "linkedin_url": "https://www.linkedin.com/in/jane",
+    "education": [{"degree": "B.E.", "institution": "Rajalakshmi Engineering College", "department": "CSE", "graduation_year": 2026, "grade": "8.6"}],
+    "experience": [{"kind": "project", "title": "Hiring portal", "description": "FastAPI + React"}],
+    "skills": [{"name": "Python", "kind": "technical"}, {"name": "Teamwork", "kind": "soft"}],
+}
+
+
+def applicant_client(email: str = "jane@gmail.com", *, complete: bool = True, resume: bool = True) -> TestClient:
+    c = new_client()
+    assert register(c, email, name="Jane Doe").status_code == 201
+    assert verify(c, email).status_code == 200
+    assert login(c, email).status_code == 200
+    if complete:
+        assert c.put("/api/applicants/profile", json=PROFILE).status_code == 200
+    if resume:
+        r = c.post("/api/applicants/resumes", files={"file": ("jane resume.pdf", make_pdf(), "application/pdf")})
+        assert r.status_code == 201, r.text
+    return c
+
+
+def recruiter(admin_client: TestClient, email: str = "rec@solidpro-test.com", perms=("manage_job_openings", "review_applications")) -> TestClient:
+    return approved_employee(admin_client, email, perms)
+
+
+def user_id(c: TestClient) -> int:
+    return c.get("/api/auth/me").json()["id"]

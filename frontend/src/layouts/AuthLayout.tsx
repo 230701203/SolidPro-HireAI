@@ -5,7 +5,11 @@ export default function AuthLayout({ title, subtitle, children, footer }: { titl
     <div className="flex min-h-full items-center justify-center bg-gradient-to-br from-brand-50 via-slate-50 to-slate-100 px-4 py-10">
       <div className="w-full max-w-md">
         <div className="mb-6 flex flex-col items-center text-center">
-          <span className="mb-3 flex size-12 items-center justify-center rounded-xl bg-brand-700 text-2xl font-bold text-white">S</span>
+          <img
+            src="/solidprogroup_logo.png"
+            alt="SolidPro Company Logo"
+            className="mb-3 h-16 w-16 object-contain"
+          />
           <p className="text-sm font-semibold text-slate-900">SolidPro HireAI</p>
           <p className="text-xs text-slate-500">SolidPro Engineering Support Pvt Ltd</p>
         </div>

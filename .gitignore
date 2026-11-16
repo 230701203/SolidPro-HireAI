@@ -1,34 +1,29 @@
-
-# Secrets and environment files
+# secrets
 .env
 .env.*
 !.env.example
-**/.env
-**/.env.*
-!**/.env.example
 
-# Python
+# python
 __pycache__/
-*.py[cod]
+*.pyc
 .venv/
 venv/
 .pytest_cache/
 .ruff_cache/
 
-# Node.js
+# node
 node_modules/
 dist/
 
-# Runtime data
+# runtime data (resumes / audio arrive in later phases)
 uploads/
 storage/
 
-# Editors and IDEs
+# editors / OS
 .vs/
 .vscode/*
 !.vscode/extensions.json
 .idea/
-
-# OS files
 .DS_Store
 Thumbs.db
+build/

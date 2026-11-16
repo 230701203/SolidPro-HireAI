@@ -1,4 +1,4 @@
-from datetime import date, datetime, time, timezone
+from datetime import UTC, date, datetime, time
 
 from fastapi import APIRouter, Query
 from sqlalchemy import func, or_, select
@@ -38,9 +38,9 @@ def list_audit_logs(
         like = f"%{search.strip()}%"
         stmt = stmt.where(or_(AuditLog.action.ilike(like), User.email.ilike(like), User.full_name.ilike(like)))
     if date_from:
-        stmt = stmt.where(AuditLog.created_at >= datetime.combine(date_from, time.min, tzinfo=timezone.utc))
+        stmt = stmt.where(AuditLog.created_at >= datetime.combine(date_from, time.min, tzinfo=UTC))
     if date_to:
-        stmt = stmt.where(AuditLog.created_at <= datetime.combine(date_to, time.max, tzinfo=timezone.utc))
+        stmt = stmt.where(AuditLog.created_at <= datetime.combine(date_to, time.max, tzinfo=UTC))
 
     total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
     rows = db.execute(stmt.order_by(AuditLog.created_at.desc(), AuditLog.id.desc()).limit(page_size).offset((page - 1) * page_size)).all()

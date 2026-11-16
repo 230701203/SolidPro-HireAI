@@ -5,7 +5,12 @@ from sqlalchemy.exc import IntegrityError
 from app.api.dependencies.auth import AdminUser, DbSession
 from app.core.errors import AppError
 from app.models import CompanyEmailDomain, EmailLog, EmailStatus
-from app.schemas.admin import EmailDomainCreate, EmailDomainOut, EmailDomainUpdate, EmailLogOut
+from app.schemas.admin import (
+    EmailDomainCreate,
+    EmailDomainOut,
+    EmailDomainUpdate,
+    EmailLogOut,
+)
 from app.schemas.common import make_page
 from app.services import audit_service, email_service
 

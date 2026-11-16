@@ -10,10 +10,19 @@ import { RoleBadge } from "@/components/ui";
 function Logo() {
   return (
     <Link to="/dashboard" className="flex items-center gap-2.5">
-      <span className="flex size-9 items-center justify-center rounded-lg bg-brand-700 text-lg font-bold text-white">S</span>
+      <img
+        src="/solidprogroup_logo.png"
+        alt="SolidPro Company Logo"
+        className="h-10 w-10 object-contain"
+      />
+
       <span className="leading-tight">
-        <span className="block text-sm font-semibold text-slate-900">SolidPro HireAI</span>
-        <span className="block text-[11px] text-slate-500">Engineering Support Pvt Ltd</span>
+        <span className="block text-sm font-semibold text-slate-900">
+          SolidPro HireAI
+        </span>
+        <span className="block text-[11px] text-slate-500">
+          Engineering Support Pvt Ltd
+        </span>
       </span>
     </Link>
   );
@@ -81,12 +90,12 @@ function ProfileMenu() {
 }
 
 export default function AppLayout() {
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
   useEffect(() => setMobileOpen(false), [location.pathname]);
   if (!user) return null;
-  const items = NAV[user.role];
+  const items = NAV[user.role].filter((i) => (!i.permission || hasPermission(i.permission)) && (!i.anyPermission || i.anyPermission.some(hasPermission)));
 
   const nav = (
     <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4" aria-label="Main">

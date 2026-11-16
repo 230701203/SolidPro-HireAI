@@ -37,6 +37,31 @@ class Settings(BaseSettings):
     smtp_from: str = "SolidPro HireAI <no-reply@solidpro.example>"
     support_email: str = "hr-support@solidpro.example"
 
+    upload_dir: str = "./storage"
+    max_upload_mb: int = 5
+    bulk_max_files: int = 50  # files per bulk batch
+    bulk_max_attempts: int = 3  # automatic processing attempts per file
+
+    # AI. "mock" is deterministic keyword matching and is always labelled as MOCK in the UI.
+    ai_provider: Literal["mock", "anthropic"] = "mock"
+    anthropic_api_key: str = ""
+    ai_model: str = "claude-sonnet-5-5"
+    ai_timeout_seconds: int = 60
+    # Speech-to-text for Repeat the Sentence (Phase 6)
+    stt_provider: Literal["mock", "openai"] = "mock"
+    stt_api_key: str = ""
+    stt_model: str = "whisper-1"
+    stt_base_url: str = "https://api.openai.com/v1"
+    stt_timeout_seconds: int = 60
+    stt_min_confidence: float = 0.6  # below this a transcript is flagged for a human to listen
+    ai_max_resume_chars: int = 15000
+
+    # Online testing (Phase 5)
+    sweeper_enabled: bool = True  # background task that auto-submits overdue attempts and expires missed schedules
+    sweeper_interval_seconds: int = 60
+    submit_grace_seconds: int = 20  # tolerated lag between the deadline and the final autosave / upload
+    max_recording_mb: int = 8
+
     company_email_domains: str = ""
     admin_email: str = ""
     admin_name: str = "System Administrator"

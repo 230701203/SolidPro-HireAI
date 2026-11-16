@@ -93,15 +93,92 @@ erDiagram
 
 Raw verification / reset tokens are never stored — only their SHA-256 hash.
 
+### Phase 2 additions (implemented, migration 0002)
+
+```mermaid
+erDiagram
+    job_categories ||--o{ job_openings : groups
+    job_openings ||--o{ employee_assignments : "assigned via"
+    users ||--o{ employee_assignments : "works on"
+    candidate_profiles ||--o{ candidate_education : has
+    candidate_profiles ||--o{ candidate_experience : has
+    candidate_profiles ||--o{ candidate_skills : has
+    candidate_profiles ||--o{ candidate_resumes : "uploads versions"
+    candidate_profiles ||--o{ job_applications : submits
+    job_openings ||--o{ job_applications : receives
+    candidate_resumes ||--o{ job_applications : "pinned to"
+    job_applications ||--o{ application_status_history : tracks
+```
+
+Rules: one application per (candidate, opening); a resume version is immutable and pinned to the application that used it; employee access is scoped through `employee_assignments`; applicant-visible history hides internal comments and reviewer identity; approved / rejected / withdrawn are final.
+
+### Phase 3 additions (implemented, migration 0003)
+
+`resume_analysis_reports` (one row per AI run): `application_id`, `resume_id` (exact version analysed), `status` (completed / failed), `provider`, `model`, `prompt_version`, `is_mock`, `ai_score`, `report` (JSONB, validated), `error`, `requested_by`, and reviewer override fields (`override_score`, `override_note`, `overridden_by`, `overridden_at`). The AI score is never overwritten; the effective score is the override when present.
+
+```
+app/ai/
+  schemas.py            AnalysisInput (what the model may see), ResumeAnalysisResult (validated output), AIProviderError
+  mock_provider.py      deterministic keyword matcher, always labelled MOCK
+  anthropic_provider.py Messages API over httpx; untrusted-resume delimiting; JSON parsing + validation
+  factory.py            picks the provider from settings; no silent fallback
+app/services/analysis_service.py   permissions, run, store, override, audit
+```
+
+Flow: staff request -> permission + opening-scope check -> build input (no name / contact / DOB / address) -> provider -> validate and clamp -> store -> audit. Nothing in this path touches `job_applications.status`.
+
+### Phase 4 additions (implemented, migration 0004)
+
+* `question_banks`, `bank_questions`: reusable aptitude content (topic, options, answer key, difficulty, marks, verified-by).
+* `assessments` (working draft per application), `assessment_sections` (exactly MCQ, Aptitude, Repeat the Sentence), `assessment_questions` (copies of bank content or AI / manual items, each with a review status).
+* `assessment_versions`: immutable snapshots with `content_hash` (SHA-256 of canonical JSON). A PostgreSQL trigger rejects UPDATE and DELETE except for the `published_at` / `published_by` columns.
+* `assessment_approvals`: who approved which version, when, the question ids and a diff against the previous version.
+
+```
+draft (generated) -> every question approved -> approve assessment -> version n (frozen) -> publish
+        ^                                                                  |
+        +------------------ any edit reopens the draft; version n stays ---+
+```
+
+AI is only asked for MCQ and Repeat-the-Sentence items; aptitude items are picked from the bank. All providers return validated structures; nothing the AI writes is shown to an applicant before a person approves it, and no test can use anything but a published, approved version.
+
+### Phase 5 additions (implemented, migration 0005)
+
+```
+published AssessmentVersion ──pinned──> assessment_schedules (token_hash, window, duration, status)
+        schedules 1─* reschedule_requests      schedules 1─* schedule_events (activity + client-reported events)
+        schedules 1─1 test_attempts (deadline, session_id, question_order JSONB, plays JSONB)
+        attempts  1─* attempt_answers (question_id, selected_index = ORIGINAL option index, seq)
+        attempts  1─* attempt_recordings (opaque stored_name, mime, size, sha256, attempt_no)
+```
+
+* Schedule states: `invited → accepted → in_progress → completed`, plus `expired` and `cancelled`. Expiry is lazy (checked on every read) and swept by a background task.
+* The invitation token is random, stored only as a SHA-256 hash, and useless without the invited applicant's login.
+* The server owns time: `deadline_at = started_at + duration`; writes after the deadline plus a grace period are refused and the attempt is auto-submitted.
+* Answer keys live only in the version snapshot. The runner receives options as `{id: originalIndex, text}` in a per-attempt shuffled order, and Repeat-the-Sentence questions carry no text until the play endpoint is called (server-counted).
+* `X-Attempt-Session` makes one browser window the owner of an attempt; resuming rotates it.
+* Client events are stored with `client_reported = true`, whitelisted and capped, and have no effect on status or scoring.
+* Staff playback goes through `/api/recordings/{id}/file`: permission + opening scope are re-checked and every access is audited.
+
+### Phase 6 additions (implemented, migration 0006)
+
+```
+test_attempts 1─1 evaluation_results (draft → final; released_at) 1─* evaluation_items (per question: auto_marks, final_marks, stt_status, details JSONB)
+evaluation_results 1─* score_overrides (who, when, original, revised, reason)   1─* evaluation_comments (internal)
+attempt_recordings 1─1 recording_transcripts (provider, confidence, text)
+job_applications 1─* interviews 1─1 interview_feedback (internal)
+```
+
+* A submitted attempt is evaluated in the same transaction: objective items are scored at once, speaking items start as `pending`; speech-to-text then runs as a background task and again from the sweeper (bounded, retried). A sweep also backfills evaluations for older submissions.
+* Speech comparison (`services/speech_scoring.py`) aligns expected and heard words with edit distance, credits near matches at half, does not penalise extra words and reports missing / substituted / extra / order. Items with low confidence, empty text or errors get `needs_review` and **no final mark** until a reviewer confirms or overrides; approval is blocked while any item has no final mark.
+* `applications.status` gained `shortlisted` and `selected`. Decisions are explicit reviewer actions (`POST /applications/{id}/decision`); shortlisting needs a final evaluation, selecting needs a shortlisted application, rejecting needs a reason.
+* Applicants only ever read `/my-results` (finalised and released) and `/my-interviews`. They never receive answer keys, transcripts, comments, interviewer feedback or other candidates' data.
+* Provider selection: `STT_PROVIDER=mock|openai` (`STT_API_KEY`, `STT_MODEL`, `STT_BASE_URL`, `STT_MIN_CONFIDENCE`). There is no silent fallback to mock and the UI labels mock speech-to-text.
+
 ## 5. Planned schema for later phases
 
 Added by Alembic migrations phase by phase (names follow the specification):
 
-* **Phase 2** — `job_categories`, `job_openings`, `employee_assignments`, `candidate_resumes` (versioned), `candidate_education`, `candidate_skills`, `candidate_experience`, `job_applications` (unique per candidate + opening), `application_status_history`.
-* **Phase 3** — `resume_analysis_reports` (JSONB report, model + prompt version recorded, reviewer overrides).
-* **Phase 4** — `question_banks`, `questions`, `question_options`, `assessments`, `assessment_sections`, `assessment_versions` (JSONB immutable snapshot), `assessment_questions`, `assessment_approvals`.
-* **Phase 5** — `assessment_invitations` (hashed single-use tokens), `test_schedules`, `reschedule_requests`, `test_attempts`, `candidate_answers`, `audio_recordings`.
-* **Phase 6** — `evaluation_results`, `evaluation_reviews` (score-override history), `interviews`, `interview_feedback`.
 * **Phase 7** — bulk upload jobs, analytics views, configurable email templates.
 
 Key invariants to carry forward: candidate profile ≠ application; one application per (candidate, opening); resume versions preserved; approved assessments are immutable snapshots; no schedule without an approved version.
@@ -112,3 +189,12 @@ Key invariants to carry forward: candidate profile ≠ application; one applicat
 * Errors: `{"error": {"code": "...", "message": "...", "fields": {...}?}}`.
 * Lists: `{"items": [...], "total": n, "page": 1, "page_size": 20, "pages": k}`.
 * Sensitive endpoints (login, register, forgot/reset password, resend verification) are rate-limited (in-memory per process; swap for Redis when running several workers).
+
+
+## 7. Phase 7 additions
+
+* **Tables (migration 0007):** `bulk_batches` (opening, creator, AI provider and mock flag) and `bulk_items` (stored file, extracted fields, advisory score, duplicate links, triage). Items cascade-delete with their batch; files are removed after the rows. Extra indexes on `job_applications`, `application_status_history`, `assessment_schedules` and `evaluation_results` support analytics.
+* **Bulk flow:** `POST /api/bulk-batches` validates and stores files, returns 202, and a background task (`bulk_service.run_batch`) claims queued items with `FOR UPDATE SKIP LOCKED`, commits per file, retries up to `BULK_MAX_ATTEMPTS`, and the sweeper recovers items stuck in `processing`. Extraction is `resume_extract.py` (regex heuristics); scoring reuses the AI provider layer with `AnalysisInput` (no name or contact details).
+* **Access:** `bulk_upload_resumes` plus assignment to the opening; analytics need `view_analytics` and are restricted to `access.staff_scope`. Comparison also needs `review_applications` because it shows names.
+* **Analytics:** `analytics_service.recruitment` computes everything on demand from real rows; rate denominators are returned with the numbers and definitions in `notes`. Exports go through `export_service`, which prefixes cells beginning with `= + - @` to stop spreadsheet formula injection.
+* **Deployment:** `backend/Dockerfile`, `frontend/Dockerfile` + `nginx.conf`, `docker-compose.prod.yml`, `docs/DEPLOYMENT.md`.

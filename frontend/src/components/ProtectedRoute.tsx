@@ -9,14 +9,15 @@ import type { Role } from "@/types";
  * - must change password     -> /change-password
  * - wrong account type       -> /dashboard
  */
-export function ProtectedRoute({ roles }: { roles?: Role[] }) {
-  const { user, loading } = useAuth();
+export function ProtectedRoute({ roles, permission }: { roles?: Role[]; permission?: string }) {
+  const { user, loading, hasPermission } = useAuth();
   const location = useLocation();
 
   if (loading) return <Spinner label="Checking your session…" />;
   if (!user) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   if (user.must_change_password) return <Navigate to="/change-password" replace />;
   if (roles && !roles.includes(user.role)) return <Navigate to="/dashboard" replace />;
+  if (permission && !hasPermission(permission)) return <Navigate to="/dashboard" replace />;
   return <Outlet />;
 }
 

@@ -12,13 +12,19 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.permissions import PERMISSIONS
-from app.core.security import generate_password, hash_password, validate_password_strength
+from app.core.security import (
+    generate_password,
+    hash_password,
+    validate_password_strength,
+)
 from app.database import SessionLocal
+from app.services.question_bank_service import sync_seed_bank
 from app.models import (
     AccountStatus,
     CandidateProfile,
     CompanyEmailDomain,
     EmployeeProfile,
+    JobCategory,
     Permission,
     Role,
     User,
@@ -34,6 +40,20 @@ def sync_permissions(db: Session) -> int:
             existing[code].description, existing[code].category = description, category
         else:
             db.add(Permission(code=code, description=description, category=category))
+            added += 1
+    db.flush()
+    return added
+
+
+DEFAULT_CATEGORIES = [("CAD", False), ("Digital Transform", False), ("Intern", True)]
+
+
+def sync_categories(db: Session) -> int:
+    existing = {c.name.lower() for c in db.scalars(select(JobCategory)).all()}
+    added = 0
+    for name, is_intern in DEFAULT_CATEGORIES:
+        if name.lower() not in existing:
+            db.add(JobCategory(name=name, is_internship=is_intern, is_active=True))
             added += 1
     db.flush()
     return added
@@ -86,9 +106,11 @@ def bootstrap() -> None:
     with SessionLocal() as db:
         perms = sync_permissions(db)
         domains = sync_domains(db)
+        cats = sync_categories(db)
+        bank_q = sync_seed_bank(db)
         admin, generated = ensure_admin(db)
         db.commit()
-    print(f"Permissions synced ({perms} new). Company domains added: {domains}.")
+    print(f"Permissions synced ({perms} new). Company domains added: {domains}. Default categories added: {cats}. Starter aptitude questions added: {bank_q}.")
     if admin:
         print(f"Admin account created: {admin.email} (must change password at first login)")
         if generated:

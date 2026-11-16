@@ -1,7 +1,17 @@
 import enum
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import (
+    Boolean,
+    Date,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import expression
 
@@ -70,12 +80,22 @@ class EmployeeProfile(TimestampMixin, Base):
 
 
 class CandidateProfile(TimestampMixin, Base):
-    """Created with every applicant account. Detailed fields are added in Phase 2."""
+    """One per applicant account. Applications reference this, never create a second candidate."""
 
     __tablename__ = "candidate_profiles"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True)
+    date_of_birth: Mapped[date | None] = mapped_column(Date)
+    address: Mapped[str | None] = mapped_column(Text)
+    city: Mapped[str | None] = mapped_column(String(100))
+    state: Mapped[str | None] = mapped_column(String(100))
+    country: Mapped[str | None] = mapped_column(String(100))
+    linkedin_url: Mapped[str | None] = mapped_column(String(300))
+    portfolio_url: Mapped[str | None] = mapped_column(String(300))
+    github_url: Mapped[str | None] = mapped_column(String(300))
+    highest_qualification: Mapped[str | None] = mapped_column(String(150))
+    total_experience_years: Mapped[float | None] = mapped_column(Float)
 
     user: Mapped[User] = relationship(back_populates="candidate_profile")
 

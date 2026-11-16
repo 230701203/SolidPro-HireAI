@@ -1,7 +1,7 @@
 import hashlib
 import re
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import jwt
 from argon2 import PasswordHasher
@@ -51,7 +51,7 @@ def create_access_token(user_id: int, token_version: int, *, remember_me: bool =
     """Return (jwt, lifetime_seconds)."""
     s = get_settings()
     minutes = s.remember_me_expire_minutes if remember_me else s.access_token_expire_minutes
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     payload = {
         "sub": str(user_id),
         "ver": token_version,

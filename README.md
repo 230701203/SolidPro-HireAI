@@ -1,7 +1,7 @@
 # SolidPro HireAI
 
 AI-assisted recruitment and assessment platform for SolidPro Engineering Support Pvt Ltd.
-**Current status: Phase 1 of 7** (authentication, roles, employee approval). See [CHECKLIST.md](CHECKLIST.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (includes the ER diagram).
+**Current status: Phase 7 of 7 complete** (authentication and roles, employee approval, recruitment management, advisory AI resume analysis, AI-drafted assessments with mandatory human approval, test scheduling and the online test with Repeat-the-Sentence recording, evaluation with human review and release, shortlisting and interviews, bulk resume screening, recruitment analytics and exports, and deployment files that still need a staging run). See [CHECKLIST.md](CHECKLIST.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (includes the ER diagram).
 
 | Layer | Stack |
 |---|---|
@@ -63,17 +63,32 @@ cd frontend && npm test && npm run build
 Backend tests run the real Alembic migrations on a real PostgreSQL database and **truncate it**, so never point `TEST_DATABASE_URL` at data you care about. With the Docker setup above use:
 `postgresql+psycopg://hireai:hireai@localhost:5432/hireai_test`
 
+## AI configuration
+Resume analysis runs in **mock mode by default** (keyword matching, labelled MOCK everywhere). To use real AI set in `backend/.env`:
+```
+AI_PROVIDER=anthropic
+ANTHROPIC_API_KEY=<your key>      # never commit this
+AI_MODEL=claude-sonnet-5-5
+```
+The same setting drives assessment generation. Online tests run in the applicant's browser (speech synthesis and MediaRecorder), so use a current Chrome, Edge or Safari; the sweeper settings are in `.env.example`. If `anthropic` is selected without a key, analysis returns an error; it never falls back to mock silently. AI output is advisory: it never approves or rejects anyone and applicants never see it.
+
 ## Security summary
 Argon2 password hashes · httpOnly SameSite cookie sessions (tokens never readable by JS) · hashed single-use verification/reset tokens · account lockout + rate limiting on sensitive endpoints · server-side role/permission checks on every request · sessions revoked on password change/suspension · audit log of security events · no secrets in source (`.env` is git-ignored).
 In production set `ENVIRONMENT=production`, `COOKIE_SECURE=true`, a strong `SECRET_KEY` (the app refuses to start otherwise), and serve over HTTPS.
 
 ## Push to GitHub
 ```bash
-git add . && git commit -m "Phase 1: auth, RBAC, employee approval"
+git add . && git commit -m "Phase 7: bulk screening, analytics, exports, deployment"
 git remote add origin https://github.com/<you>/solidpro-hireai.git
 git push -u origin main
 ```
 Never commit `backend/.env`. CI (`.github/workflows/ci.yml`) runs lint, tests and the build on every push.
 
 ## Roadmap
-Phases 2–7 (recruitment management, AI resume analysis, assessment generation with mandatory human approval, online testing with Repeat-the-Sentence, evaluation and interviews, bulk upload and analytics) are built one at a time, each with its own migration and tests.
+All seven phases are built. What remains is listed honestly in [CHECKLIST.md](CHECKLIST.md): notably a staging run of the deployment files, live testing of the real AI and speech providers, and expert review of the starter aptitude questions.
+
+## Phase 7 quick notes
+
+* **Bulk screening:** sign in as an admin (or an employee with *Bulk resume upload* on an assigned opening) and open **Bulk Screening**. It ranks resumes against an opening; it never creates accounts or changes applicants.
+* **Analytics:** **Analytics** (permission *View analytics*). Compare 2 to 5 candidates by ticking rows on **Results**.
+* **Production:** see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) (`docker-compose.prod.yml`, `.env.production.example`). These files have not been run against a live Docker daemon.

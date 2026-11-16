@@ -44,7 +44,7 @@ def test_employee_cannot_approve_or_change_permissions(admin):
 
 def test_require_permission_dependency_logic(admin):
     """Admin passes everything; employees only what was granted; applicants nothing."""
-    from fastapi import FastAPI, Depends
+    from fastapi import Depends, FastAPI
     from fastapi.testclient import TestClient
 
 
@@ -184,7 +184,8 @@ def test_dashboard_numbers_come_from_database(admin):
     verify(c, "pend.emp@solidpro-test.com")
 
     d = admin.get("/api/dashboard/summary").json()
-    assert d["cards"] == {"total_applicants": 2, "total_employees": 1, "pending_employee_approvals": 1, "suspended_accounts": 0}
+    assert {k: d["cards"][k] for k in ("total_applicants", "total_employees", "pending_employee_approvals", "suspended_accounts")} == {"total_applicants": 2, "total_employees": 1, "pending_employee_approvals": 1, "suspended_accounts": 0}
+    assert d["cards"]["total_openings"] == 0 and d["cards"]["total_applications"] == 0
     assert len(d["registrations_by_day"]) == 30
     assert sum(x["applicants"] for x in d["registrations_by_day"]) == 2
     assert [u["email"] for u in d["recent_employee_requests"]] == ["pend.emp@solidpro-test.com"]

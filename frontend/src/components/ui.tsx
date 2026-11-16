@@ -262,10 +262,14 @@ export function Modal({
 }) {
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
+  // Keep the latest onClose without re-running the focus effect: parents usually pass an inline function, and re-running
+  // on every render would steal focus from the field being typed in after each keystroke.
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
 
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && closeRef.current();
     document.addEventListener("keydown", onKey);
     const previous = document.activeElement as HTMLElement | null;
     panelRef.current?.focus();
@@ -275,7 +279,7 @@ export function Modal({
       document.body.style.overflow = "";
       previous?.focus?.();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
   return (

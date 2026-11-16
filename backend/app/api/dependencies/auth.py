@@ -105,3 +105,7 @@ def require_permission(code: str):
 
 AdminUser = Annotated[User, Depends(require_roles(Role.ADMIN))]
 StaffUser = Annotated[User, Depends(require_roles(Role.ADMIN, Role.EMPLOYEE))]
+ApplicantUser = Annotated[User, Depends(require_roles(Role.APPLICANT))]
+ManageCategories = Annotated[User, Depends(require_permission("manage_categories"))]
+ManageOpenings = Annotated[User, Depends(require_permission("manage_job_openings"))]
+ReviewApplications = Annotated[User, Depends(require_permission("review_applications"))]
