@@ -12,7 +12,7 @@ import type { EvalListItem, Page } from "@/types";
 export default function ResultsPage() {
   const [params0] = useSearchParams();
   const [search, setSearch] = useState(params0.get("search") ?? "");
-  const [filter, setFilter] = useState("");
+  const [filter, setFilter] = useState(["needs_review", "draft", "final", "unreleased"].includes(params0.get("filter") ?? "") ? (params0.get("filter") as string) : "");
   const [page, setPage] = useState(1);
   const { hasPermission } = useAuth();
   const nav = useNavigate();
