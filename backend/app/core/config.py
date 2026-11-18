@@ -8,7 +8,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    app_name: str = "SolidPro HireAI"
+    app_name: str = "Solid HIRE"
     environment: Literal["development", "test", "production"] = "development"
 
     database_url: str = "postgresql+psycopg://hireai:hireai@localhost:5432/hireai"
@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     smtp_username: str = ""
     smtp_password: str = ""
     smtp_starttls: bool = False
-    smtp_from: str = "SolidPro HireAI <no-reply@solidpro.example>"
+    smtp_from: str = "Solid HIRE <no-reply@solidpro.example>"
     support_email: str = "hr-support@solidpro.example"
 
     upload_dir: str = "./storage"
