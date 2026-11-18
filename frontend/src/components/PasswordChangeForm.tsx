@@ -6,7 +6,8 @@ import { Alert, Button, Field, PasswordInput } from "@/components/ui";
 import { api, errorMessage, fieldErrors } from "@/services/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/components/Toast";
-import { passwordSchema } from "@/utils/passwordRules";
+import { LIMITS, passwordChecks, passwordSchema } from "@/utils/validation";
+import { CharCount, PasswordChecklist } from "@/components/LiveChecks";
 import type { User } from "@/types";
 
 const schema = z
@@ -23,8 +24,12 @@ export default function PasswordChangeForm({ onDone }: { onDone?: (u: User) => v
     handleSubmit,
     reset,
     setError: setFieldError,
-    formState: { errors, isSubmitting },
-  } = useForm<Form>({ resolver: zodResolver(schema) });
+    watch,
+    formState: { errors, isSubmitting, isSubmitted },
+  } = useForm<Form>({ resolver: zodResolver(schema), mode: "onChange" });
+
+  const pwValue = watch("new_password") ?? "";
+  const confirmValue = watch("confirm") ?? "";
 
   const onSubmit = async (v: Form) => {
     setError(null);
@@ -44,13 +49,16 @@ export default function PasswordChangeForm({ onDone }: { onDone?: (u: User) => v
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
       {error && <Alert kind="error">{error}</Alert>}
       <Field label="Current password" htmlFor="current_password" error={errors.current_password?.message}>
-        <PasswordInput id="current_password" autoComplete="current-password" invalid={!!errors.current_password} {...register("current_password")} />
+        <PasswordInput id="current_password" autoComplete="current-password" maxLength={LIMITS.loginPasswordMax} invalid={!!errors.current_password} {...register("current_password")} />
       </Field>
-      <Field label="New password" htmlFor="new_password" error={errors.new_password?.message} hint="10+ characters with upper-case, lower-case and a number.">
-        <PasswordInput id="new_password" autoComplete="new-password" invalid={!!errors.new_password} {...register("new_password")} />
-      </Field>
-      <Field label="Confirm new password" htmlFor="confirm" error={errors.confirm?.message}>
-        <PasswordInput id="confirm" autoComplete="new-password" invalid={!!errors.confirm} {...register("confirm")} />
+      <Field label="New password" htmlFor="new_password" error={isSubmitted ? errors.new_password?.message : undefined}>
+          <PasswordInput id="new_password" autoComplete="new-password" maxLength={LIMITS.passwordMax} aria-describedby="pw-rules" invalid={!!errors.new_password && pwValue.length > 0} {...register("new_password")} />
+          <div id="pw-rules"><PasswordChecklist checks={passwordChecks(pwValue)} password={pwValue} /></div>
+          <div className="mt-1 text-right"><CharCount value={pwValue} max={LIMITS.passwordMax} /></div>
+        </Field>
+      <Field label="Confirm new password" htmlFor="confirm" error={confirmValue ? errors.confirm?.message : undefined}>
+          <PasswordInput id="confirm" autoComplete="new-password" maxLength={LIMITS.passwordMax} invalid={!!errors.confirm && confirmValue.length > 0} {...register("confirm")} />
+          {confirmValue && confirmValue === pwValue && <p role="status" className="mt-1 text-xs text-emerald-700">Passwords match</p>}
       </Field>
       <Button type="submit" loading={isSubmitting}>Change password</Button>
     </form>

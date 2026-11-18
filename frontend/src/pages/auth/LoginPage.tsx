@@ -8,10 +8,13 @@ import { Alert, Button, Field, PasswordInput, TextInput } from "@/components/ui"
 import { useAuth } from "@/contexts/AuthContext";
 import { api, errorCode, errorMessage } from "@/services/api";
 import { useToast } from "@/components/Toast";
+import { LiveHint } from "@/components/LiveChecks";
+import { LIMITS, emailProblem, emailSchema } from "@/utils/validation";
 
 const schema = z.object({
-  email: z.string().min(1, "Enter your email").email("Enter a valid email"),
-  password: z.string().min(1, "Enter your password"),
+  email: emailSchema,
+  // Sign-in only checks presence and length: it must never reject an existing account over a newer password rule.
+  password: z.string().min(1, "Enter your password").max(LIMITS.loginPasswordMax, `Password must be at most ${LIMITS.loginPasswordMax} characters`),
   remember_me: z.boolean(),
 });
 type Form = z.infer<typeof schema>;
@@ -26,8 +29,10 @@ export default function LoginPage() {
     register,
     handleSubmit,
     getValues,
+    watch,
     formState: { errors, isSubmitting },
-  } = useForm<Form>({ resolver: zodResolver(schema), defaultValues: { remember_me: false } });
+  } = useForm<Form>({ resolver: zodResolver(schema), mode: "onChange", defaultValues: { remember_me: false } });
+  const emailValue = watch("email") ?? "";
 
   const onSubmit = async (v: Form) => {
     setError(null);
@@ -69,10 +74,11 @@ export default function LoginPage() {
           </Alert>
         )}
         <Field label="Email address" htmlFor="email" error={errors.email?.message}>
-          <TextInput id="email" type="email" autoComplete="username" invalid={!!errors.email} {...register("email")} />
+          <TextInput id="email" type="email" autoComplete="username" maxLength={LIMITS.emailMax} invalid={!!errors.email} {...register("email")} />
+          {!errors.email && <LiveHint value={emailValue} problem={emailProblem(emailValue)} okText="Email format looks good" />}
         </Field>
         <Field label="Password" htmlFor="password" error={errors.password?.message}>
-          <PasswordInput id="password" autoComplete="current-password" invalid={!!errors.password} {...register("password")} />
+          <PasswordInput id="password" autoComplete="current-password" maxLength={LIMITS.loginPasswordMax} invalid={!!errors.password} {...register("password")} />
         </Field>
         <div className="flex items-center justify-between text-sm">
           <label className="flex items-center gap-2 text-slate-700">

@@ -1,9 +1,9 @@
 import re
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, ValidationInfo, field_validator
 
-from app.core.security import validate_password_strength
+from app.core.security import NAME_MAX, NAME_MIN, validate_email_quality, validate_full_name, validate_password_strength
 from app.models import AccountStatus, Role
 
 _MOBILE_RE = re.compile(r"^\+?[0-9][0-9 \-]{7,17}$")
@@ -21,21 +21,26 @@ def _clean_mobile(value: str | None) -> str | None:
 
 
 class RegisterRequest(BaseModel):
-    full_name: str = Field(min_length=2, max_length=150)
+    full_name: str = Field(min_length=NAME_MIN, max_length=NAME_MAX + 20)  # exact rules in the validator below
     email: EmailStr
     password: str
     mobile: str | None = None
     accept_terms: bool
 
+    @field_validator("full_name")
+    @classmethod
+    def _name_ok(cls, v: str) -> str:
+        return validate_full_name(v)
+
     @field_validator("email")
     @classmethod
-    def _lower_email(cls, v: str) -> str:
-        return v.strip().lower()
+    def _email_ok(cls, v: str) -> str:
+        return validate_email_quality(v).lower()
 
     @field_validator("password")
     @classmethod
-    def _password_ok(cls, v: str) -> str:
-        return validate_password_strength(v)
+    def _password_ok(cls, v: str, info: ValidationInfo) -> str:
+        return validate_password_strength(v, email=info.data.get("email"))  # email is validated first (field order)
 
     @field_validator("mobile")
     @classmethod
@@ -51,7 +56,8 @@ class RegisterRequest(BaseModel):
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    # Login only checks shape and length: it must never reject an existing account because the rules got stricter.
+    email: EmailStr = Field(max_length=254)
     password: str = Field(min_length=1, max_length=128)
     remember_me: bool = False
 
@@ -85,8 +91,13 @@ class ChangePasswordRequest(BaseModel):
 
 
 class UpdateMeRequest(BaseModel):
-    full_name: str | None = Field(default=None, min_length=2, max_length=150)
+    full_name: str | None = Field(default=None, min_length=NAME_MIN, max_length=NAME_MAX + 20)
     mobile: str | None = None
+
+    @field_validator("full_name")
+    @classmethod
+    def _name_ok(cls, v: str | None) -> str | None:
+        return validate_full_name(v) if v is not None else None
 
     @field_validator("mobile")
     @classmethod

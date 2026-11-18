@@ -7,18 +7,23 @@ import { MailCheck } from "lucide-react";
 import AuthLayout from "@/layouts/AuthLayout";
 import { Alert, Button, Field, PasswordInput, TextInput } from "@/components/ui";
 import { api, errorMessage, fieldErrors } from "@/services/api";
-import { mobileSchema, passwordSchema } from "@/utils/passwordRules";
+import { CharCount, LiveHint, PasswordChecklist } from "@/components/LiveChecks";
+import { LIMITS, emailProblem, emailSchema, mobileSchema, nameProblem, nameSchema, passwordChecks } from "@/utils/validation";
 
 const schema = z
   .object({
-    full_name: z.string().trim().min(2, "Enter your full name"),
-    email: z.string().min(1, "Enter your email").email("Enter a valid email"),
-    mobile: z.string().optional(),
-    password: passwordSchema,
+    full_name: nameSchema,
+    email: emailSchema,
+    mobile: z.string().optional().refine((v) => !v || mobileSchema.safeParse(v).success, "Enter a valid mobile number (8 to 15 digits, optional + prefix)"),
+    password: z.string().min(1, "Enter a password"),
     confirm: z.string(),
     accept_terms: z.boolean().refine((v) => v, "You must accept the privacy notice"),
   })
-  .refine((d) => d.password === d.confirm, { path: ["confirm"], message: "Passwords do not match" });
+  .superRefine((d, ctx) => {
+    const bad = passwordChecks(d.password, d.email).find((c) => !c.ok);
+    if (bad) ctx.addIssue({ code: "custom", path: ["password"], message: `Password needs: ${bad.label.toLowerCase()}` });
+    if (d.password !== d.confirm) ctx.addIssue({ code: "custom", path: ["confirm"], message: "Passwords do not match" });
+  });
 type Form = z.infer<typeof schema>;
 
 export default function RegisterPage() {
@@ -28,8 +33,13 @@ export default function RegisterPage() {
     register,
     handleSubmit,
     setError: setFieldError,
-    formState: { errors, isSubmitting },
-  } = useForm<Form>({ resolver: zodResolver(schema), defaultValues: { accept_terms: false } });
+    watch,
+    formState: { errors, isSubmitting, isSubmitted },
+  } = useForm<Form>({ resolver: zodResolver(schema), mode: "onChange", defaultValues: { accept_terms: false } });
+  const nameValue = watch("full_name") ?? "";
+  const emailValue = watch("email") ?? "";
+  const pwValue = watch("password") ?? "";
+  const confirmValue = watch("confirm") ?? "";
 
   const onSubmit = async (v: Form) => {
     setError(null);
@@ -74,19 +84,27 @@ export default function RegisterPage() {
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
         {error && <Alert kind="error">{error}</Alert>}
         <Field label="Full name" htmlFor="full_name" error={errors.full_name?.message}>
-          <TextInput id="full_name" autoComplete="name" invalid={!!errors.full_name} {...register("full_name")} />
+          <TextInput id="full_name" autoComplete="name" maxLength={LIMITS.nameMax} invalid={!!errors.full_name} {...register("full_name")} />
+          <div className="flex justify-between gap-2">
+            <div>{!errors.full_name && <LiveHint value={nameValue} problem={nameProblem(nameValue)} okText="Looks good" />}</div>
+            <CharCount value={nameValue} max={LIMITS.nameMax} />
+          </div>
         </Field>
         <Field label="Email address" htmlFor="email" error={errors.email?.message}>
-          <TextInput id="email" type="email" autoComplete="email" invalid={!!errors.email} {...register("email")} />
+          <TextInput id="email" type="email" autoComplete="email" maxLength={LIMITS.emailMax} invalid={!!errors.email} {...register("email")} />
+          {!errors.email && <LiveHint value={emailValue} problem={emailProblem(emailValue)} okText="Email format looks good" />}
         </Field>
         <Field label="Mobile number" htmlFor="mobile" error={errors.mobile?.message} hint="Required for applicants. Optional for company email accounts.">
-          <TextInput id="mobile" type="tel" autoComplete="tel" placeholder="+91 98765 43210" invalid={!!errors.mobile} {...register("mobile")} />
+          <TextInput id="mobile" type="tel" autoComplete="tel" placeholder="+91 98765 43210" maxLength={18} invalid={!!errors.mobile} {...register("mobile")} />
         </Field>
-        <Field label="Password" htmlFor="password" error={errors.password?.message} hint="10+ characters with upper-case, lower-case and a number.">
-          <PasswordInput id="password" autoComplete="new-password" invalid={!!errors.password} {...register("password")} />
+        <Field label="Password" htmlFor="password" error={isSubmitted ? errors.password?.message : undefined}>
+          <PasswordInput id="password" autoComplete="new-password" maxLength={LIMITS.passwordMax} aria-describedby="pw-rules" invalid={!!errors.password && pwValue.length > 0} {...register("password")} />
+          <div id="pw-rules"><PasswordChecklist checks={passwordChecks(pwValue, emailValue)} password={pwValue} /></div>
+          <div className="mt-1 text-right"><CharCount value={pwValue} max={LIMITS.passwordMax} /></div>
         </Field>
-        <Field label="Confirm password" htmlFor="confirm" error={errors.confirm?.message}>
-          <PasswordInput id="confirm" autoComplete="new-password" invalid={!!errors.confirm} {...register("confirm")} />
+        <Field label="Confirm password" htmlFor="confirm" error={confirmValue ? errors.confirm?.message : undefined}>
+          <PasswordInput id="confirm" autoComplete="new-password" maxLength={LIMITS.passwordMax} invalid={!!errors.confirm && confirmValue.length > 0} {...register("confirm")} />
+          {confirmValue && confirmValue === pwValue && <p role="status" className="mt-1 text-xs text-emerald-700">Passwords match</p>}
         </Field>
         <div>
           <label className="flex items-start gap-2 text-sm text-slate-700">
