@@ -1,6 +1,7 @@
 import hashlib
 import re
 import secrets
+import unicodedata
 from datetime import UTC, datetime, timedelta
 
 import jwt
@@ -30,20 +31,74 @@ def password_needs_rehash(password_hash: str) -> bool:
     return _hasher.check_needs_rehash(password_hash)
 
 
+PASSWORD_MIN, PASSWORD_MAX = 10, 64
+SPECIAL_CHARS = "!@#$%^&*()_+-=[]{};':\",.<>/?\\|`~"
+_COMMON = ("password", "qwerty", "123456", "letmein", "iloveyou", "welcome1", "admin123")
+EMAIL_MAX, EMAIL_LOCAL_MAX = 254, 64
+NAME_MIN, NAME_MAX = 2, 60
+# Mirrors frontend/src/utils/validation.ts. The server stays the source of truth.
+_EMAIL_LOCAL_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9._%+\-]*[A-Za-z0-9])?$")
+_DOMAIN_LABEL_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9\-]*[A-Za-z0-9])?$")
+
+
+def validate_email_quality(email: str) -> str:
+    """Stricter than 'looks like an email': sane length and characters, a real-looking domain, no junk."""
+    e = email.strip()
+    if len(e) > EMAIL_MAX:
+        raise ValueError(f"Email must be at most {EMAIL_MAX} characters")
+    if " " in e or e.count("@") != 1:
+        raise ValueError("Enter a valid email address such as name@company.com")
+    local, domain = e.split("@")
+    if not local or len(local) > EMAIL_LOCAL_MAX:
+        raise ValueError(f"The part before @ must be 1 to {EMAIL_LOCAL_MAX} characters")
+    if ".." in local or not _EMAIL_LOCAL_RE.match(local):
+        raise ValueError("The part before @ may only use letters, numbers and . _ % + - (no leading, trailing or double dots)")
+    if not re.search(r"[A-Za-z]", local):
+        raise ValueError("The part before @ must contain at least one letter")
+    labels = domain.split(".")
+    if len(labels) < 2 or any(not lab or len(lab) > 63 or not _DOMAIN_LABEL_RE.match(lab) for lab in labels):
+        raise ValueError("The domain after @ must look like company.com")
+    if not re.fullmatch(r"[A-Za-z]{2,24}", labels[-1]):
+        raise ValueError("The domain must end with a valid extension such as .com or .in")
+    return e
+
+
+def validate_full_name(name: str) -> str:
+    n = re.sub(r"\s+", " ", name.strip())
+    if len(n) < NAME_MIN or len(n) > NAME_MAX:
+        raise ValueError(f"Name must be {NAME_MIN} to {NAME_MAX} characters")
+    # Letters of any language (including combining marks used in Indic scripts), spaces and . ' -
+    ok_chars = all(c.isalpha() or unicodedata.category(c).startswith("M") or c in " .'-" for c in n)
+    if not ok_chars or not n[0].isalpha() or sum(c.isalpha() for c in n) < NAME_MIN or re.search(r"[.'\-]{2,}", n):
+        raise ValueError("Name may only contain letters, spaces and . ' - (and must start with a letter)")
+    return n
+
+
 def validate_password_strength(password: str, *, email: str | None = None) -> str:
     """Return the password if acceptable, else raise ValueError with a user-facing message."""
-    if len(password) < 10:
-        raise ValueError("Password must be at least 10 characters long")
-    if len(password) > 128:
-        raise ValueError("Password must be at most 128 characters long")
+    if len(password) < PASSWORD_MIN:
+        raise ValueError(f"Password must be at least {PASSWORD_MIN} characters long")
+    if len(password) > PASSWORD_MAX:
+        raise ValueError(f"Password must be at most {PASSWORD_MAX} characters long")
+    if any(c.isspace() for c in password):
+        raise ValueError("Password must not contain spaces")
+    if not all(c.isascii() and c.isprintable() for c in password):
+        raise ValueError("Password may only use English letters, digits and symbols")
     if not re.search(r"[a-z]", password):
         raise ValueError("Password must contain a lowercase letter")
     if not re.search(r"[A-Z]", password):
         raise ValueError("Password must contain an uppercase letter")
     if not re.search(r"\d", password):
         raise ValueError("Password must contain a digit")
-    if email and password.lower() == email.lower():
-        raise ValueError("Password must not be the same as your email")
+    if not any(c in SPECIAL_CHARS for c in password):
+        raise ValueError("Password must contain a symbol such as ! @ # $ %")
+    low = password.lower()
+    if any(w in low for w in _COMMON):
+        raise ValueError("Password is too easy to guess; avoid common words and sequences")
+    if email:
+        local = email.split("@")[0].lower()
+        if low == email.lower() or (len(local) >= 6 and local in low):
+            raise ValueError("Password must not contain your email name")
     return password
 
 
@@ -81,7 +136,7 @@ def hash_token(raw: str) -> str:
 
 def generate_password(length: int = 18) -> str:
     """Random password that satisfies validate_password_strength."""
-    alphabet = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+    alphabet = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%&*?"
     while True:
         pw = "".join(secrets.choice(alphabet) for _ in range(length))
         try:

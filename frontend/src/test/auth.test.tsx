@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -95,6 +95,18 @@ describe("login form", () => {
     expect(post).not.toHaveBeenCalled();
   });
 
+  it("checks the email live but never shows password-policy rules on sign-in", async () => {
+    unauthenticated();
+    mount(<LoginPage />);
+    const email = await screen.findByLabelText("Email address");
+    await userEvent.type(email, "admin@solidpro");
+    expect(await screen.findByText(/must look like company.com/)).toBeInTheDocument();
+    await userEvent.type(email, ".example");
+    expect(await screen.findByText("Email format looks good")).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText("Password"), "oldpass");
+    expect(screen.queryByTestId("password-checklist")).not.toBeInTheDocument();
+  });
+
   it("shows the server's reason when approval is pending", async () => {
     unauthenticated();
     vi.spyOn(api, "post").mockRejectedValue({
@@ -128,10 +140,75 @@ describe("registration form", () => {
     await userEvent.type(screen.getByLabelText("Password"), "short");
     await userEvent.type(screen.getByLabelText("Confirm password"), "different");
     await userEvent.click(screen.getByRole("button", { name: "Create account" }));
-    expect(await screen.findByText("At least 10 characters")).toBeInTheDocument();
+    expect(await screen.findByText(/Password needs: 10 to 64 characters/)).toBeInTheDocument();
     expect(screen.getByText("Passwords do not match")).toBeInTheDocument();
     expect(screen.getByText("You must accept the privacy notice")).toBeInTheDocument();
     expect(post).not.toHaveBeenCalled();
+  });
+
+  it("shows live feedback: rules tick off as you type, with a strength label", async () => {
+    unauthenticated();
+    mount(<RegisterPage />);
+    const pw = await screen.findByLabelText("Password");
+    const list = screen.getByTestId("password-checklist");
+    const status = (label: RegExp) => within(list).getByText(label).closest("li")!.textContent;
+    await userEvent.type(pw, "abc");
+    expect(status(/lowercase letter/)).toMatch(/\(met\)/);
+    expect(status(/uppercase letter/)).toMatch(/\(not met\)/);
+    expect(within(list).getByText(/Strength: Weak/)).toBeInTheDocument();
+    await userEvent.type(pw, "DEF1");
+    expect(status(/uppercase letter/)).toMatch(/\(met\)/);
+    expect(status(/A number/)).toMatch(/\(met\)/);
+    expect(status(/A symbol/)).toMatch(/\(not met\)/);
+    await userEvent.type(pw, "!ghijk");
+    expect(status(/A symbol/)).toMatch(/\(met\)/);
+    expect(status(/10 to 64 characters/)).toMatch(/\(met\)/);
+    expect(within(list).getByText(/Strength: (Good|Strong)/)).toBeInTheDocument();
+    expect(screen.getByText("13 / 64")).toBeInTheDocument();
+    await userEvent.type(pw, "password");
+    expect(status(/No common words/)).toMatch(/\(not met\)/);
+    await userEvent.type(screen.getByLabelText("Confirm password"), "abcDEF1!ghijkpassword");
+    expect(await screen.findByText("Passwords match")).toBeInTheDocument();
+  });
+
+  it("gives live feedback on name and email, with a character counter", async () => {
+    unauthenticated();
+    mount(<RegisterPage />);
+    const name = await screen.findByLabelText("Full name");
+    await userEvent.type(name, "Jane3");
+    expect(await screen.findByText(/Use letters, spaces and/)).toBeInTheDocument();
+    await userEvent.clear(name);
+    await userEvent.type(name, "Jane Doe");
+    expect(await screen.findAllByText("Looks good")).not.toHaveLength(0);
+    expect(screen.getByText("8 / 60")).toBeInTheDocument();
+    const email = screen.getByLabelText("Email address");
+    await userEvent.type(email, "12345@gmail.com");
+    expect(await screen.findByText(/must contain at least one letter/)).toBeInTheDocument();
+    await userEvent.clear(email);
+    await userEvent.type(email, "jane@gmail");
+    expect(await screen.findByText(/must look like company.com/)).toBeInTheDocument();
+    await userEvent.type(email, ".com");
+    expect(await screen.findByText("Email format looks good")).toBeInTheDocument();
+  });
+
+  it("stops typing beyond the limits", async () => {
+    unauthenticated();
+    mount(<RegisterPage />);
+    const name = (await screen.findByLabelText("Full name")) as HTMLInputElement;
+    await userEvent.type(name, "A".repeat(80));
+    expect(name.value).toHaveLength(60);
+    const pw = screen.getByLabelText("Password") as HTMLInputElement;
+    await userEvent.type(pw, "a".repeat(80));
+    expect(pw.value).toHaveLength(64);
+  });
+
+  it("rejects a password containing the email name", async () => {
+    unauthenticated();
+    mount(<RegisterPage />);
+    await userEvent.type(await screen.findByLabelText("Email address"), "priya.raman@gmail.com");
+    await userEvent.type(screen.getByLabelText("Password"), "Priya.raman#2026X");
+    const item = within(screen.getByTestId("password-checklist")).getByText(/Does not contain your email name/).closest("li")!;
+    expect(item.textContent).toMatch(/\(not met\)/);
   });
 
   it("submits valid data and shows the check-your-email screen", async () => {
