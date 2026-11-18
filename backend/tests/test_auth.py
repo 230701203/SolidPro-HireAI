@@ -265,3 +265,66 @@ def test_audit_trail_created_for_auth_events(admin):
         actions = {a.action for a in db.scalars(select(AuditLog)).all()}
     assert {"auth.login", "auth.password_changed"} <= actions
     assert make_admin_client  # fixture import sanity
+
+
+# ---- stricter input validation (names, emails, passwords) ----------------------------------------
+
+import pytest  # noqa: E402
+
+from app.core import security  # noqa: E402
+
+
+@pytest.mark.parametrize("email", [
+    "plainaddress", "a@b", "name@.com", "name@domain..com", "na me@domain.com", "..x@domain.com", ".x@domain.com", "x.@domain.com",
+    "12345@domain.com", "name@domain.c", "name@domain.123", "name@-domain.com", "@domain.com", "name@@domain.com", "a" * 65 + "@domain.com",
+    "name@" + "a" * 250 + ".com",
+])
+def test_meaningless_emails_are_rejected(email):
+    with pytest.raises(ValueError):
+        security.validate_email_quality(email)
+
+
+@pytest.mark.parametrize("email", ["priya.raman@example.org", "a_b+tag@sub.company.co.in", "x1@my-company.com", "Dev.Applicant@Example.com"])
+def test_sensible_emails_pass(email):
+    assert security.validate_email_quality(email) == email
+
+
+@pytest.mark.parametrize("name", ["R", "A" * 61, "John3", "Rahul<script>", "  ", "J@ne", "_x_"])
+def test_bad_names_are_rejected(name):
+    with pytest.raises(ValueError):
+        security.validate_full_name(name)
+
+
+@pytest.mark.parametrize("name", ["Priya Raman", "Anne-Marie O'Neil", "S. Karthik", "José Álvarez", "முத்து குமார்"[:20]])
+def test_reasonable_names_pass(name):
+    assert security.validate_full_name(name)
+
+
+@pytest.mark.parametrize("pw,why", [
+    ("Sh0rt!a", "at least 10"), ("A" * 40 + "b1!" + "x" * 30, "at most 64"), ("Has Space1!aaa", "spaces"), ("Pässw0rd!!xx", "English"),
+    ("alllowercase1!x", "uppercase"), ("ALLUPPERCASE1!X", "lowercase"), ("NoDigitsHere!!x", "digit"), ("NoSymbol1234Ab", "symbol"),
+    ("MyPassword1!xx", "easy to guess"), ("Qwerty123456!A", "easy to guess"),
+])
+def test_weak_passwords_are_rejected_with_a_reason(pw, why):
+    with pytest.raises(ValueError, match=why):
+        security.validate_password_strength(pw)
+
+
+def test_password_may_not_contain_email_name():
+    with pytest.raises(ValueError, match="email name"):
+        security.validate_password_strength("Priya.raman#2026X", email="priya.raman@example.org")
+    assert security.validate_password_strength("Kd8#vLm2Qx9z", email="priya.raman@example.org")
+
+
+def test_register_endpoint_enforces_the_new_rules(client):
+    ok = dict(full_name="Priya Raman", email="priya.raman@example.org", password="Kd8#vLm2Qx9z", mobile="+919876543210", accept_terms=True)
+    for override in ({"full_name": "Priya123"}, {"email": "12345@example.org"}, {"password": "NoSymbol1234Ab"}, {"password": "Priya.raman#2026X"}):
+        r = client.post("/api/auth/register", json={**ok, **override})
+        assert r.status_code == 422, override
+    assert client.post("/api/auth/register", json=ok).status_code in (200, 201)
+
+
+def test_login_stays_lenient_so_existing_accounts_are_never_locked_out(client):
+    assert client.post("/api/auth/login", json={"email": "old@example.org", "password": "x"}).status_code == 401  # wrong creds, not 422
+    assert client.post("/api/auth/login", json={"email": "old@example.org", "password": "p" * 129}).status_code == 422
+    assert client.post("/api/auth/login", json={"email": "a" * 250 + "@example.org", "password": "x"}).status_code == 422
