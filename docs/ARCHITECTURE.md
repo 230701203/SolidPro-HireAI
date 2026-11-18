@@ -1,4 +1,4 @@
-# SolidPro HireAI — Architecture
+# Solid HIRE — Architecture
 
 ## 1. Stack (as implemented)
 
