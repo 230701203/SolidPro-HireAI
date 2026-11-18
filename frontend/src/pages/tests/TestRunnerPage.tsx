@@ -11,8 +11,10 @@ import type { TakeAttempt, TakeQuestion } from "@/types";
  * Distraction-free test runner (outside the normal app layout).
  * - The server owns the deadline; the clock here is only a display, corrected by the server's time.
  * - Answers autosave in the background and are retried while offline.
- * - Browser events (tab hidden, copy, paste...) are reported for context ONLY. Nothing here blocks the
- *   applicant or ends the test because of them.
+ * - Copy, cut, paste, drag and the right-click menu are blocked while the test is open. This is a deterrent only:
+ *   a browser cannot truly stop someone using another device or window.
+ * - A browser cannot prevent switching tabs. It can only notice it, so we show a warning when the applicant
+ *   comes back and report it. Reports are for reviewers' context ONLY: nothing here ends the test or fails anyone.
  */
 
 type Answer = { selected: number | null; marked: boolean; seq: number };
@@ -147,6 +149,8 @@ export default function TestRunnerPage() {
   const [offset, setOffset] = useState(0);
   const [now, setNow] = useState(Date.now());
   const [offline, setOffline] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [leftCount, setLeftCount] = useState(0);
   const [closed, setClosed] = useState<string | null>(null);
   const [confirm, setConfirm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -197,16 +201,22 @@ export default function TestRunnerPage() {
   }, [closed, headers, id]);
   const report = useCallback((kind: ClientEventKind) => { events.current.push({ kind, at: new Date().toISOString() }); }, []);
   useEffect(() => {
-    const vis = () => report(document.hidden ? "tab_hidden" : "tab_visible");
+    const vis = () => {
+      report(document.hidden ? "tab_hidden" : "tab_visible");
+      if (document.hidden) setLeftCount((n) => n + 1);
+      else setNotice("You left the test window. This was recorded for the reviewers and the timer kept running. Please stay on this page until you submit.");
+    };
     const on = () => { setOffline(false); report("online"); };
     const off = () => { setOffline(true); report("offline"); };
-    const copy = () => report("copy");
-    const paste = () => report("paste");
+    // Blocked, but still reported (informational). "cut" is reported as "copy"; the server only knows these kinds.
+    const block = (kind: ClientEventKind | null) => (e: Event) => { e.preventDefault(); if (kind) report(kind); setNotice("Copy and paste are turned off during this test."); };
+    const copy = block("copy"), cut = block("copy"), paste = block("paste"), menu = block(null), drag = block(null);
     document.addEventListener("visibilitychange", vis);
     window.addEventListener("online", on); window.addEventListener("offline", off);
-    document.addEventListener("copy", copy); document.addEventListener("paste", paste);
+    document.addEventListener("copy", copy); document.addEventListener("cut", cut); document.addEventListener("paste", paste);
+    document.addEventListener("contextmenu", menu); document.addEventListener("dragstart", drag);
     const t = window.setInterval(() => { void sendEvents(); }, 10000);
-    return () => { document.removeEventListener("visibilitychange", vis); window.removeEventListener("online", on); window.removeEventListener("offline", off); document.removeEventListener("copy", copy); document.removeEventListener("paste", paste); window.clearInterval(t); };
+    return () => { document.removeEventListener("visibilitychange", vis); window.removeEventListener("online", on); window.removeEventListener("offline", off); document.removeEventListener("copy", copy); document.removeEventListener("cut", cut); document.removeEventListener("paste", paste); document.removeEventListener("contextmenu", menu); document.removeEventListener("dragstart", drag); window.clearInterval(t); };
   }, [report, sendEvents]);
 
   const submit = useCallback(async () => {
@@ -253,7 +263,7 @@ export default function TestRunnerPage() {
   const low = remaining < 5 * 60 * 1000;
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen select-none bg-slate-50">
       <header className="sticky top-0 z-10 border-b border-slate-200 bg-white px-4 py-3">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3">
           <div><h1 className="text-base font-semibold text-slate-900">{data.assessment_title}</h1><p className="text-xs text-slate-500">{answered} of {questions.length} answered</p></div>
@@ -263,6 +273,7 @@ export default function TestRunnerPage() {
           </div>
         </div>
       </header>
+      {notice && <div className="flex items-center justify-center gap-3 bg-amber-100 px-4 py-2 text-center text-sm text-amber-900" role="alert">{notice}{leftCount > 0 && <span className="text-xs">({leftCount} time{leftCount === 1 ? "" : "s"} away so far)</span>}<button type="button" onClick={() => setNotice(null)} className="rounded px-2 text-xs font-medium underline">Dismiss</button></div>}
       {offline && <div className="bg-amber-100 px-4 py-2 text-center text-sm text-amber-900" role="alert"><WifiOff className="mr-1 inline size-4" /> You appear to be offline. Your answers are kept here and will be saved when the connection returns. Keep this page open.</div>}
       <div className="mx-auto grid max-w-5xl gap-6 p-4 lg:grid-cols-[1fr_16rem]">
         <main className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -304,7 +315,7 @@ export default function TestRunnerPage() {
             })}
           </div>
           <p className="mt-3 text-xs text-slate-500">Green = answered. Underlined = marked for review.</p>
-          <p className="mt-3 text-xs text-slate-500">Switching tabs or copy/paste is noted for context only and will not fail your test.</p>
+          <p className="mt-3 text-xs text-slate-500">Copy and paste are turned off. Leaving this tab is recorded for the reviewers; it cannot be blocked, and it does not fail your test automatically.</p>
         </aside>
       </div>
       <Modal open={confirm} onClose={() => setConfirm(false)} title="Submit your test?"

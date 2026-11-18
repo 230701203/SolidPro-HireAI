@@ -76,7 +76,7 @@ export default function MyTestDetailPage() {
             <li>You will hear sentences and repeat them aloud. Your voice is recorded and stored privately; only authorised recruiters can listen.</li>
             <li>You can hear each sentence {(t.rs_max_replays ?? 0) + 1} time(s) and record up to {t.rs_max_attempts ?? 1} time(s), for at most {t.rs_record_seconds ?? 20} seconds each.</li>
             <li>Allow microphone access when your browser asks. Use a quiet place and a stable connection. Speak naturally; accent is not penalised.</li>
-            <li>Tab switches, copy and paste, and connection drops are noted for context only. They never fail or reject you automatically.</li>
+            <li>Copy, cut, paste and the right-click menu are turned off during the test. If you leave the test tab or window, it is recorded and shown to the reviewers; the timer keeps running. These records and connection drops never fail or reject you automatically.</li>
           </ul>
         </Card>
       )}

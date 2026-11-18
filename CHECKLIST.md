@@ -204,5 +204,6 @@ Status legend: ✅ done and tested · 🟡 partial · ⬜ not started
 * Rate limits are in memory per process; the sweeper is single-instance (see DEPLOYMENT.md).
 * No load test, penetration test or dependency audit was performed. The route sweep checks authentication, not every authorisation rule (those are covered feature by feature).
 * Notification polish is limited to the bulk-finished notification; no other new notification types, digests or preferences were added.
+* **Test window guards:** copy, cut, paste, drag and the right-click menu are blocked in the test runner, and a warning shows when the applicant returns after leaving the tab. This is a deterrent, not enforcement: a browser cannot stop tab switching, screenshots, a second device or a second window side by side. Leaving the tab is only recorded for reviewers (it never submits, fails or rejects anyone, by design). Component-tested, not yet checked in a real browser.
 * No data-retention or automatic deletion policy exists for resumes, recordings or bulk batches beyond manual deletion of a batch.
 
