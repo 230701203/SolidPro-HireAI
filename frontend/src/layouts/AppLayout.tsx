@@ -18,7 +18,7 @@ function Logo() {
 
       <span className="leading-tight">
         <span className="block text-sm font-semibold text-slate-900">
-          SolidPro HireAI
+          Solid HIRE
         </span>
         <span className="block text-[11px] text-slate-500">
           Engineering Support Pvt Ltd
