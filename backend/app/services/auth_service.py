@@ -165,7 +165,7 @@ def verify_email(db: Session, raw_token: str, background: BackgroundTasks, reque
                 link="/admin/users",
             )
             notification_service.notify(
-                db, user.id, "welcome", "Welcome to SolidPro HireAI", "Your email is verified. Complete your profile to start applying."
+                db, user.id, "welcome", "Welcome to Solid HIRE", "Your email is verified. Complete your profile to start applying."
             )
     audit_service.log_action(db, "auth.verify_email", entity_type="user", entity_id=user.id, request=request)
     db.commit()
