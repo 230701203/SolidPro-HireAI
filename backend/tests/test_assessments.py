@@ -81,8 +81,13 @@ def test_exactly_three_sections_mock_labelled_everything_pending(case):
 
 def test_mock_mcq_answer_key_follows_the_shuffled_options(case):
     _, _, _, d = case
-    q = next(x for x in questions(d, "mcq") if x["text"].startswith("What does the expression"))
-    assert q["options"][q["correct_index"]] == "[0, 2, 4]"
+    from app.ai.mock_content import MCQ_POOL
+
+    keys = {t: o[c] for items in MCQ_POOL.values() for t, o, c, _e, _d, _topic in items}
+    served = [x for x in questions(d, "mcq") if x["text"] in keys]
+    assert served, "the mock provider should have served curated questions"
+    for q in served:  # whatever the shuffle did to the options, the key still points at the curated answer
+        assert q["options"][q["correct_index"]] == keys[q["text"]]
 
 
 def test_mock_fills_unknown_skills_with_placeholders_that_cannot_be_approved(admin):
@@ -147,8 +152,11 @@ def test_questions_about_unrelated_skills_are_dropped(admin, monkeypatch):
 
 def test_aptitude_shortfall_is_reported_not_invented(admin):
     _, _, a = approved_app(admin, "short@gmail.com")
+    from app.ai.mock_content import APTITUDE_SEED
+
+    n = sum(1 for q in APTITUDE_SEED if q[0] == "pattern")
     d = generate(admin, a["id"], aptitude_count=30, aptitude_topics=["pattern"])
-    assert len(questions(d, "aptitude")) == 3 and any("aptitude bank only had 3" in n for n in d["generation_notes"])
+    assert len(questions(d, "aptitude")) == n and any(f"aptitude bank only had {n}" in note for note in d["generation_notes"])
 
 
 # ------------------------------------------------------------------ review and approval
@@ -287,7 +295,10 @@ def test_regenerate_replaces_content_and_resets_review(admin, case):
 
 def test_regenerate_aptitude_without_replacement_is_a_clear_409(admin):
     _, _, a = approved_app(admin, "norep@gmail.com")
-    d = generate(admin, a["id"], aptitude_count=3, aptitude_topics=["pattern"])  # the bank has exactly 3 pattern questions
+    from app.ai.mock_content import APTITUDE_SEED
+
+    n = sum(1 for q in APTITUDE_SEED if q[0] == "pattern")  # ask for every pattern question, so none is left to swap in
+    d = generate(admin, a["id"], aptitude_count=n, aptitude_topics=["pattern"])
     r = admin.post(f"/api/assessments/{d['id']}/questions/{questions(d, 'aptitude')[0]['id']}/regenerate")
     assert r.status_code == 409 and r.json()["error"]["code"] == "no_replacement"
 
@@ -359,7 +370,7 @@ def test_audit_trail_records_generation_review_and_approval(admin, case):
 
 def test_question_bank_crud_validation_and_permissions(admin):
     seed = admin.get("/api/question-banks").json()
-    assert seed[0]["name"].startswith("General aptitude") and seed[0]["active_question_count"] == 18
+    assert seed[0]["name"].startswith("General aptitude") and seed[0]["active_question_count"] == len(__import__("app.ai.mock_content", fromlist=["x"]).APTITUDE_SEED)
     r = admin.post("/api/question-banks", json={"name": "Mechanical aptitude"})
     assert r.status_code == 201
     bid = r.json()["id"]
@@ -457,3 +468,68 @@ def test_mock_provider_generation_is_deterministic_and_respects_avoid_list():
     sents = MockProvider().generate_sentences(_gi(count=4))
     assert len(sents) == 4 and all(isinstance(s, GeneratedSentence) and 5 <= len(s.text.split()) <= 30 for s in sents)
     assert isinstance(MockProvider(), AIProvider)
+
+
+def test_second_batch_numeric_answers_are_correct():
+    """Every arithmetic question in the seed is re-derived here, independently of the stored answer key."""
+    from app.ai.mock_content import APTITUDE_SEED
+
+    keyed = {t: o[c] for _, t, o, c, _, _ in APTITUDE_SEED}
+    expected = {
+        "A worker completes a job in 12 days. How many days will 3 such workers, working at the same rate, take to complete it?": f"{12 // 3} days",
+        "What is the simple interest on 5,000 at 8% per annum for 3 years?": f"{5000 * 8 * 3 // 100:,}",
+        "A shirt marked at 800 is sold at a 25% discount. What is the selling price?": str(800 - 800 * 25 // 100),
+        "If 5 pens cost 60, what do 8 pens cost at the same rate?": str(60 * 8 // 5),
+        "The ratio of boys to girls in a class is 3:2. If there are 30 students, how many are girls?": str(30 * 2 // 5),
+        "A car travels at 72 km/h. What is this speed in metres per second?": f"{72 * 1000 // 3600} m/s",
+        "An item bought for 400 is sold for 500. What is the profit percentage?": f"{(500 - 400) * 100 // 400}%",
+        "Two numbers have a sum of 50 and a difference of 10. What is the larger number?": str((50 + 10) // 2),
+        "How many minutes are there in 2.5 hours?": str(int(2.5 * 60)),
+        "A team of 4 people completes a task in 9 days. If 2 more people with the same pace join from the start, how many days will it take?": f"{4 * 9 // 6} days",
+        "A 5,000 invoice gives a 2% discount if paid within 10 days. How much is paid if the discount is taken?": f"{5000 - 5000 * 2 // 100:,}",
+        "Server A handles 40 requests per minute and Server B handles 60. How long do both together need to handle 1,000 requests?": f"{1000 // (40 + 60)} minutes",
+        "A factory produced 200 units on Monday, 250 on Tuesday and 300 on Wednesday. What was the total production?": str(200 + 250 + 300),
+        "Sales rose from 250 in Q1 to 300 in Q2. What is the percentage growth?": f"{(300 - 250) * 100 // 250}%",
+        "In a survey of 200 employees, 35% prefer remote work. How many prefer remote work?": str(200 * 35 // 100),
+        "Expenses of 80,000 are split as Rent 40%, Salaries 35% and Other 25%. How much is spent on Salaries?": f"{80000 * 35 // 100:,}",
+        "Defects found per week were 12, 9, 6 and 3 in weeks 1 to 4. By what percentage did weekly defects fall from week 1 to week 4?": f"{(12 - 3) * 100 // 12}%",
+        "The average of five numbers is 24. If the number 30 is removed, what is the average of the remaining four?": str((24 * 5 - 30) / 4),
+        "What comes next in the series 1, 2, 4, 7, 11, ?": str(11 + 5),
+        "What comes next in the series 1, 1, 2, 3, 5, 8, ?": str(5 + 8),
+        "What comes next in the series 81, 27, 9, 3, ?": str(3 // 3),
+        "What comes next in the series 2, 3, 5, 7, 11, ?": "13",
+    }
+    for question, answer in expected.items():
+        assert keyed[question] == answer, question
+    # the tank question: 1/6 - 1/12 = 1/12 per hour
+    from fractions import Fraction
+
+    assert keyed["A tank is filled by one pipe in 6 hours and emptied by another pipe in 12 hours. With both open, how long does the empty tank take to fill?"] == f"{int(1 / (Fraction(1, 6) - Fraction(1, 12)))} hours"
+    assert keyed["Which number does not fit the pattern 2, 4, 6, 9, 10?"] == "9"
+    assert keyed["If today is Wednesday, what day will it be 10 days from today?"] == ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"][(2 + 10) % 7]
+
+
+def test_seed_sync_tops_up_existing_bank_without_touching_edits():
+    from sqlalchemy import select
+
+    from app.ai.mock_content import APTITUDE_SEED
+    from app.database import SessionLocal
+    from app.models import BankQuestion, QuestionBank
+    from app.services.question_bank_service import SEED_BANK_NAME, sync_seed_bank
+
+    with SessionLocal() as db:
+        assert sync_seed_bank(db) == 0  # already complete: nothing to add
+        bank = db.scalar(select(QuestionBank).where(QuestionBank.name == SEED_BANK_NAME))
+        newest = db.scalar(select(BankQuestion).where(BankQuestion.bank_id == bank.id, BankQuestion.text == APTITUDE_SEED[-1][1]))
+        edited = db.scalar(select(BankQuestion).where(BankQuestion.bank_id == bank.id, BankQuestion.text == APTITUDE_SEED[0][1]))
+        edited.explanation = "Edited by a reviewer"
+        edited.is_active = False
+        db.delete(newest)  # simulate a database created before the newest seed question existed
+        db.commit()
+        assert sync_seed_bank(db) == 1
+        db.commit()
+        assert sync_seed_bank(db) == 0
+        db.refresh(edited)
+        assert edited.explanation == "Edited by a reviewer" and edited.is_active is False  # reviewer's edit and deactivation survive
+        texts = db.scalars(select(BankQuestion.text).where(BankQuestion.bank_id == bank.id)).all()
+        assert len(texts) == len(APTITUDE_SEED) == len(set(texts))

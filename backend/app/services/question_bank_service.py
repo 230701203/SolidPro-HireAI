@@ -14,16 +14,27 @@ SEED_BANK_NAME = "General aptitude (starter set)"
 
 
 def sync_seed_bank(db: Session) -> int:
-    """Create the starter bank once. It is a convenience: SolidPro should review and extend it."""
-    if db.scalar(select(QuestionBank.id).where(QuestionBank.name == SEED_BANK_NAME)):
-        return 0
-    bank = QuestionBank(name=SEED_BANK_NAME, description="Starter aptitude questions for all roles. Review and extend before relying on them.", is_active=True)
-    db.add(bank)
-    db.flush()
+    """Create the starter bank once, and top it up with seed questions added in later releases.
+
+    Only questions whose text is missing from the bank are added, so nothing a reviewer edited, deactivated or
+    reordered is touched. A seed question that was hard-deleted would come back; deactivate it instead.
+    It is a convenience: SolidPro should review and extend it.
+    """
+    bank = db.scalar(select(QuestionBank).where(QuestionBank.name == SEED_BANK_NAME))
+    if bank is None:
+        bank = QuestionBank(name=SEED_BANK_NAME, description="Starter aptitude questions for all roles. Review and extend before relying on them.", is_active=True)
+        db.add(bank)
+        db.flush()
+    present = set(db.scalars(select(BankQuestion.text).where(BankQuestion.bank_id == bank.id)).all())
+    added = 0
     for topic, text, options, ci, expl, diff in APTITUDE_SEED:
+        if text in present:
+            continue
         db.add(BankQuestion(bank_id=bank.id, topic=topic, text=text, options=options, correct_index=ci, explanation=expl, difficulty=Difficulty(diff), marks=1, source="seed"))
+        present.add(text)
+        added += 1
     db.flush()
-    return len(APTITUDE_SEED)
+    return added
 
 
 def _bank_out(db: Session, b: QuestionBank) -> BankOut:
