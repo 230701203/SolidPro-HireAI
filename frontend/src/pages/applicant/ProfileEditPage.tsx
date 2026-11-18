@@ -82,7 +82,7 @@ export default function ProfileEditPage() {
   const toast = useToast();
   const [serverError, setServerError] = useState<string | null>(null);
   const { data: p, isLoading, error, refetch } = useQuery({ queryKey: ["my-profile"], queryFn: async () => (await api.get<Profile>("/applicants/profile")).data });
-  const form = useForm<Form>({ resolver: zodResolver(schema), values: p ? toForm(p) : undefined });
+  const form = useForm<Form>({ resolver: zodResolver(schema), defaultValues: p ? toForm(p) : undefined, values: p ? toForm(p) : undefined });
   const { register, control, handleSubmit, setError, formState: { errors, isSubmitting } } = form;
   const edu = useFieldArray({ control, name: "education" });
   const exp = useFieldArray({ control, name: "experience" });
@@ -183,7 +183,7 @@ export default function ProfileEditPage() {
             <h2 className="font-semibold text-slate-900">Skills</h2>
             {KINDS.map((k) => (
               <Field key={k} label={SKILL_KIND_LABELS[k]} htmlFor={`skills_${k}`} hint="Type and press Enter.">
-                <Controller control={control} name={`skills_${k}` as const} render={({ field }) => <TagInput id={`skills_${k}`} value={field.value} onChange={field.onChange} />} />
+                <Controller control={control} name={`skills_${k}` as const} render={({ field }) => <TagInput id={`skills_${k}`} value={field.value ?? []} onChange={field.onChange} />} />
               </Field>
             ))}
           </Card>
