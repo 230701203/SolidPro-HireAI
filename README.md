@@ -1,4 +1,4 @@
-# SolidPro HireAI
+# Solid HIRE
 
 AI-assisted recruitment and assessment platform for SolidPro Engineering Support Pvt Ltd.
 **Current status: Phase 7 of 7 complete** (authentication and roles, employee approval, recruitment management, advisory AI resume analysis, AI-drafted assessments with mandatory human approval, test scheduling and the online test with Repeat-the-Sentence recording, evaluation with human review and release, shortlisting and interviews, bulk resume screening, recruitment analytics and exports, and deployment files that still need a staging run). See [CHECKLIST.md](CHECKLIST.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (includes the ER diagram).
