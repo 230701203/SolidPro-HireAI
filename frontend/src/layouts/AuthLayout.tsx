@@ -10,7 +10,7 @@ export default function AuthLayout({ title, subtitle, children, footer }: { titl
             alt="SolidPro Company Logo"
             className="mb-3 h-16 w-16 object-contain"
           />
-          <p className="text-sm font-semibold text-slate-900">SolidPro HireAI</p>
+          <p className="text-sm font-semibold text-slate-900">Solid HIRE</p>
           <p className="text-xs text-slate-500">SolidPro Engineering Support Pvt Ltd</p>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
