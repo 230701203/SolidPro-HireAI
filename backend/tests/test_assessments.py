@@ -509,6 +509,36 @@ def test_second_batch_numeric_answers_are_correct():
     assert keyed["If today is Wednesday, what day will it be 10 days from today?"] == ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"][(2 + 10) % 7]
 
 
+def test_third_batch_numeric_answers_are_correct():
+    """Placement-style arithmetic, re-derived independently of the stored key."""
+    import math
+    from fractions import Fraction
+
+    from app.ai.mock_content import APTITUDE_SEED
+
+    keyed = {t: o[c] for _, t, o, c, _, _ in APTITUDE_SEED}
+    assert keyed["A can do a job in 10 days and B can do it in 15 days. Working together, how many days will they take?"] == f"{int(1 / (Fraction(1, 10) + Fraction(1, 15)))} days"
+    assert keyed["A train 150 m long crosses a pole in 10 seconds. What is its speed in km/h?"] == f"{150 / 10 * 3.6:.0f} km/h"
+    assert keyed["A man travels 60 km at 30 km/h and returns the same 60 km at 60 km/h. What is his average speed for the whole journey?"] == f"{120 // (60 // 30 + 60 // 60)} km/h"
+    assert keyed["The ratio of the ages of a father and son is 5:2 and the sum of their ages is 70 years. What is the son's age?"] == f"{70 * 2 // 7} years"
+    assert keyed["In how many ways can the letters of the word LEAD be arranged?"] == str(math.factorial(4))
+    assert keyed["In how many ways can a committee of 2 be chosen from 5 people?"] == str(math.comb(5, 2))
+    assert keyed["What is the compound interest on 10,000 at 10% per annum for 2 years, compounded annually?"] == f"{round(10000 * 1.1 ** 2 - 10000):,}"
+    assert keyed["What is the LCM of 12 and 18?"] == str(math.lcm(12, 18))
+    assert keyed["What is the HCF of 24 and 36?"] == str(math.gcd(24, 36))
+    assert keyed["A number increased by 20% gives 180. What was the original number?"] == str(round(180 / 1.2))
+    assert keyed["The average of 5 numbers is 20 and the average of the first 4 is 18. What is the fifth number?"] == str(5 * 20 - 4 * 18)
+    assert keyed["What is the square root of 1,764?"] == str(math.isqrt(1764))
+    assert keyed["What is the unit digit of 7^4?"] == str(7 ** 4 % 10)
+    assert keyed["In a row of 40 students, Anil is 12th from the left. What is his position from the right?"] == f"{40 - 12 + 1}th"
+    assert keyed["6 people complete a task in 10 days. How many days will 4 people take at the same rate?"] == f"{6 * 10 // 4} days"
+    assert keyed["A student scored 70, 80 and 90 in three tests. What must the student score in a fourth test to average 85?"] == str(4 * 85 - 240)
+    assert keyed["In a class of 60 students, 40% are girls. How many boys are there?"] == str(60 - 60 * 40 // 100)
+    assert keyed["What comes next in the series 2, 5, 10, 17, 26, ?"] == str(6 * 6 + 1)
+    assert keyed["What comes next in the series 4, 9, 16, 25, ?"] == str(36)
+    assert keyed["Find the odd one out: 8, 27, 64, 100, 125."] == "100"
+
+
 def test_seed_sync_tops_up_existing_bank_without_touching_edits():
     from sqlalchemy import select
 
