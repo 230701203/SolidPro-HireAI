@@ -12,6 +12,7 @@ Rules enforced here:
 """
 
 import logging
+from datetime import timedelta
 
 from fastapi import BackgroundTasks, Request
 from sqlalchemy import func, select
@@ -35,6 +36,11 @@ from app.models import (
     JobApplication,
     JobOpening,
     RecordingTranscript,
+    AccountStatus,
+    EmployeeAssignment,
+    EmployeePermission,
+    Notification,
+    Permission,
     Role,
     ScheduleEvent,
     ScoreOverride,
@@ -246,7 +252,51 @@ def sweep(db: Session) -> dict:
     db.commit()
     ids = db.scalars(select(EvaluationItem.evaluation_id).where(EvaluationItem.stt_status == SttStatus.PENDING).distinct().limit(10)).all()
     processed = sum(process_speech(db, i) for i in ids)
-    return {"evaluations_created": len(missing), "speech_processed": processed}
+    return {"evaluations_created": len(missing), "speech_processed": processed, "review_reminders": remind_reviewers(db)}
+
+
+def remind_reviewers(db: Session) -> int:
+    """One in-app digest per reviewer about evaluations that have waited too long in review.
+
+    Who: active admins (all openings) and active employees holding review_results, for their assigned openings only.
+    Dedupe: a person gets at most one reminder per `review_reminder_every_hours`, found from the notifications table
+    itself, so no extra column is needed. In-app only: no email, and nothing about the applicant's identity is included.
+    """
+    s = get_settings()
+    now = utcnow()
+    waiting = db.execute(
+        select(JobApplication.opening_id, func.count(EvaluationResult.id))
+        .join(JobApplication, JobApplication.id == EvaluationResult.application_id)
+        .where(EvaluationResult.status == EvaluationStatus.DRAFT, EvaluationResult.created_at <= now - timedelta(hours=s.review_reminder_after_hours))
+        .group_by(JobApplication.opening_id)
+    ).all()
+    if not waiting:
+        return 0
+    per_opening = {oid: n for oid, n in waiting}
+    total = sum(per_opening.values())
+    recipients: dict[int, int] = {u.id: total for u in notification_service.active_admins(db)}
+    for uid, oid in db.execute(
+        select(EmployeeAssignment.employee_id, EmployeeAssignment.opening_id)
+        .join(User, User.id == EmployeeAssignment.employee_id)
+        .join(EmployeePermission, EmployeePermission.user_id == User.id)
+        .join(Permission, Permission.id == EmployeePermission.permission_id)
+        .where(User.status == AccountStatus.ACTIVE, User.role == Role.EMPLOYEE, Permission.code == "review_results", EmployeeAssignment.opening_id.in_(list(per_opening)))
+    ).all():
+        recipients[uid] = recipients.get(uid, 0) + per_opening[oid]
+    sent = 0
+    since = now - timedelta(hours=s.review_reminder_every_hours)
+    for uid, n in recipients.items():
+        recent = db.scalar(select(Notification.id).where(Notification.user_id == uid, Notification.type == "review_reminder", Notification.created_at >= since).limit(1))
+        if recent is not None:
+            continue
+        notification_service.notify(
+            db, uid, "review_reminder", "Results awaiting review",
+            f"{n} assessment result{'s have' if n != 1 else ' has'} been waiting more than {s.review_reminder_after_hours} hours for review.",
+            "/results?filter=draft",
+        )
+        sent += 1
+    db.commit()
+    return sent
 
 
 # ---- staff access --------------------------------------------------------------------------------------
