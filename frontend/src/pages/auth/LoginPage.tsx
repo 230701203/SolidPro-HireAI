@@ -57,7 +57,7 @@ export default function LoginPage() {
   return (
     <AuthLayout
       title="Sign in"
-      subtitle="Use your SolidPro HireAI account."
+      subtitle="Use your Solid HIRE account."
       footer={
         <>
           New candidate? <Link to="/register" className="font-medium text-brand-700 hover:underline">Create an applicant account</Link>
