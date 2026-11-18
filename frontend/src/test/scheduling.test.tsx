@@ -77,8 +77,36 @@ describe("Test runner", () => {
     open();
     expect(await screen.findByText("Which keyword defines a function?")).toBeInTheDocument();
     expect(screen.getByRole("timer")).toHaveTextContent(/^(29|30):\d\d$/);
-    expect(screen.getByText(/will not fail your test/i)).toBeInTheDocument();
+    expect(screen.getByText(/does not fail your test automatically/i)).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/correct/i);
+  });
+
+  it("blocks copy, cut, paste and the right-click menu, and says so", async () => {
+    vi.spyOn(api, "get").mockResolvedValue({ data: attempt() });
+    open();
+    await screen.findByText("Which keyword defines a function?");
+    for (const type of ["copy", "cut", "paste", "contextmenu"]) {
+      const ev = new Event(type, { bubbles: true, cancelable: true });
+      document.dispatchEvent(ev);
+      expect(ev.defaultPrevented, type).toBe(true);
+    }
+    expect(await screen.findByText(/Copy and paste are turned off during this test/)).toBeInTheDocument();
+  });
+
+  it("warns when the applicant comes back after leaving the tab, without ending the test", async () => {
+    vi.spyOn(api, "get").mockResolvedValue({ data: attempt() });
+    const post = vi.spyOn(api, "post").mockResolvedValue({ data: {} });
+    open();
+    await screen.findByText("Which keyword defines a function?");
+    const hide = (hidden: boolean) => { Object.defineProperty(document, "hidden", { configurable: true, get: () => hidden }); document.dispatchEvent(new Event("visibilitychange")); };
+    hide(true);
+    hide(false);
+    expect(await screen.findByText(/You left the test window/)).toBeInTheDocument();
+    expect(screen.getByText(/1 time away so far/)).toBeInTheDocument();
+    expect(screen.getByRole("timer")).toBeInTheDocument(); // still running, not submitted
+    expect(post).not.toHaveBeenCalledWith(expect.stringContaining("/submit"), expect.anything(), expect.anything());
+    await userEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+    expect(screen.queryByText(/You left the test window/)).not.toBeInTheDocument();
   });
 
   it("autosaves a chosen answer with the session header and the original option id", async () => {
