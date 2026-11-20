@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Bell, ChevronDown, KeyRound, LogOut, Menu, X } from "lucide-react";
+import { Bell, ChevronDown, ChevronRight, KeyRound, LogOut, Menu, X } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/services/api";
-import { NAV } from "./navigation";
+import { GROUP_ICONS, NAV, type NavItem } from "./navigation";
 import { RoleBadge } from "@/components/ui";
 
 function Logo() {
@@ -89,6 +89,54 @@ function ProfileMenu() {
   );
 }
 
+const linkClass = ({ isActive }: { isActive: boolean }) =>
+  `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+    isActive ? "bg-brand-50 text-brand-800" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+  }`;
+
+type Section = { group: string | null; items: NavItem[] };
+
+/** Keep the original order; items that share a group are gathered under the first one's position. */
+function toSections(items: NavItem[]): Section[] {
+  const out: Section[] = [];
+  for (const item of items) {
+    if (!item.group) { out.push({ group: null, items: [item] }); continue; }
+    const existing = out.find((s) => s.group === item.group);
+    if (existing) existing.items.push(item); else out.push({ group: item.group, items: [item] });
+  }
+  return out;
+}
+
+function NavGroup({ section, pathname }: { section: Section; pathname: string }) {
+  const name = section.group as string;
+  const Icon = GROUP_ICONS[name] ?? ChevronRight;
+  const hasActive = section.items.some((i) => pathname === i.to || pathname.startsWith(i.to + "/"));
+  const [open, setOpen] = useState(hasActive);
+  useEffect(() => { if (hasActive) setOpen(true); }, [hasActive]);
+  const id = `nav-group-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+  return (
+    <div>
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={id}
+        onClick={() => setOpen((o) => !o)}
+        className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors hover:bg-slate-100 ${hasActive ? "text-brand-800" : "text-slate-800"}`}
+      >
+        <Icon className="size-[18px]" aria-hidden /> <span className="flex-1 text-left">{name}</span>
+        <ChevronDown className={`size-4 text-slate-400 transition-transform ${open ? "" : "-rotate-90"}`} aria-hidden />
+      </button>
+      {open && (
+        <div id={id} className="ml-5 mt-0.5 space-y-0.5 border-l border-slate-200 pl-2">
+          {section.items.map(({ to, label, icon: ItemIcon }) => (
+            <NavLink key={to + label} to={to} className={linkClass}><ItemIcon className="size-4" aria-hidden /> {label}</NavLink>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function AppLayout() {
   const { user, hasPermission } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -99,19 +147,15 @@ export default function AppLayout() {
 
   const nav = (
     <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4" aria-label="Main">
-      {items.map(({ to, label, icon: Icon }) => (
-        <NavLink
-          key={to}
-          to={to}
-          className={({ isActive }) =>
-            `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-              isActive ? "bg-brand-50 text-brand-800" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-            }`
-          }
-        >
-          <Icon className="size-[18px]" aria-hidden /> {label}
-        </NavLink>
-      ))}
+      {toSections(items).map((s) =>
+        s.group ? (
+          <NavGroup key={s.group} section={s} pathname={location.pathname} />
+        ) : (
+          <NavLink key={s.items[0].to + s.items[0].label} to={s.items[0].to} className={linkClass}>
+            {(() => { const I = s.items[0].icon; return <I className="size-[18px]" aria-hidden />; })()} {s.items[0].label}
+          </NavLink>
+        ),
+      )}
     </nav>
   );
 
