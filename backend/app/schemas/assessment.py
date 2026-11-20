@@ -105,6 +105,22 @@ class BankQuestionOut(BaseModel):
     updated_at: datetime
 
 
+class ImportRowIssue(BaseModel):
+    row: int
+    message: str
+    skipped: bool = False
+
+
+class ImportResult(BaseModel):
+    dry_run: bool
+    total_rows: int
+    valid: int
+    imported: int
+    duplicates: int
+    failed: int
+    issues: list[ImportRowIssue]
+
+
 # ---------------------------------------------------------------- assessments
 
 

@@ -442,6 +442,9 @@ export interface BankQuestion {
   difficulty: Difficulty; marks: number; is_active: boolean; source: string; verified_by_name: string | null; updated_at: string;
 }
 
+export interface ImportRowIssue { row: number; message: string; skipped: boolean }
+export interface ImportResult { dry_run: boolean; total_rows: number; valid: number; imported: number; duplicates: number; failed: number; issues: ImportRowIssue[] }
+
 /* ---- Phase 5: scheduling and online tests ---- */
 export type ScheduleStatus = "invited" | "accepted" | "in_progress" | "completed" | "expired" | "cancelled";
 export type AttemptStatus = "in_progress" | "submitted";
