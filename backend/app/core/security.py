@@ -63,6 +63,37 @@ def validate_email_quality(email: str) -> str:
     return e
 
 
+def validate_mobile(value: str) -> str:
+    """Normalise and check a mobile number. Mirrored by frontend/src/utils/mobile.ts: change both together.
+
+    India (+91) must be exactly 10 digits starting 6-9. Other countries: 8 to 15 digits in total including the
+    country code. Numbers made of one repeated digit (9999999999) are refused.
+    """
+    raw = re.sub(r"[ \-]+", " ", value.strip())
+    if not re.fullmatch(r"\+?[0-9][0-9 ]*", raw):
+        raise ValueError("Use digits only, with an optional + before the country code")
+    digits = re.sub(r"\D", "", raw)
+    if not raw.startswith("+"):
+        if len(digits) == 10:
+            raw, digits = "+91 " + digits, "91" + digits
+        else:
+            raise ValueError("Include the country code, for example +91 98765 43210")
+    if digits.startswith("91"):
+        national = digits[2:]
+        if len(national) != 10:
+            raise ValueError("An Indian mobile number has exactly 10 digits after +91")
+        if national[0] not in "6789":
+            raise ValueError("An Indian mobile number starts with 6, 7, 8 or 9")
+        raw = "+91 " + national
+    else:
+        if digits.startswith("0") or not 8 <= len(digits) <= 15:
+            raise ValueError("Enter 8 to 15 digits including the country code")
+        national = digits[-8:]
+    if len(set(national)) == 1:
+        raise ValueError("Enter a real mobile number")
+    return raw
+
+
 def validate_full_name(name: str) -> str:
     n = re.sub(r"\s+", " ", name.strip())
     if len(n) < NAME_MIN or len(n) > NAME_MAX:

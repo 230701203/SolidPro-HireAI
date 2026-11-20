@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Controller, useFieldArray, useForm } from "react-hook-form";
+import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -7,24 +7,32 @@ import { Plus, Trash2, Upload } from "lucide-react";
 import { api, errorMessage, fieldErrors } from "@/services/api";
 import { Alert, Button, Card, ErrorState, Field, PageHeader, Select, Spinner, Textarea, TextInput } from "@/components/ui";
 import TagInput from "@/components/TagInput";
+import SelectOther from "@/components/SelectOther";
+import { COUNTRIES, DEPARTMENTS, INDIAN_STATES, QUALIFICATIONS } from "@/utils/presets";
 import ResumeLinks from "@/components/ResumeLinks";
 import { useToast } from "@/components/Toast";
 import { EXPERIENCE_KIND_LABELS, SKILL_KIND_LABELS } from "@/utils/labels";
 import type { ExperienceKind, Profile, Resume, SkillKind } from "@/types";
 
 const url = z.string().refine((v) => v === "" || /^https?:\/\/\S+$/i.test(v), "Enter a full URL starting with http:// or https://");
+const hostUrl = (host: string, name: string) => url.refine((v) => { if (v === "" || !/^https?:\/\/\S+$/i.test(v)) return true; try { const h = new URL(v).hostname; return h === host || h.endsWith("." + host); } catch { return false; } }, `Enter your ${name} link (it should be on ${host})`);
+const place = z.string().max(100).refine((v) => v.trim() === "" || /^[\p{L}][\p{L}\p{M} .'-]+$/u.test(v.trim()), "Use letters, spaces and . ' - only");
+const THIS_YEAR = new Date().getFullYear();
+const sixteenYearsAgo = () => { const d = new Date(); d.setFullYear(d.getFullYear() - 16); return d.toISOString().slice(0, 10); };
 const schema = z.object({
-  date_of_birth: z.string(), address: z.string().max(500), city: z.string().max(100), state: z.string().max(100), country: z.string().max(100),
-  linkedin_url: url, portfolio_url: url, github_url: url, highest_qualification: z.string().max(150),
+  date_of_birth: z.string().refine((v) => v === "" || (v >= "1930-01-01" && v <= sixteenYearsAgo()), "Enter a valid date of birth (you must be at least 16)"),
+  address: z.string().max(500), city: place, state: place, country: place,
+  linkedin_url: hostUrl("linkedin.com", "LinkedIn"), portfolio_url: url, github_url: hostUrl("github.com", "GitHub"), highest_qualification: z.string().max(150),
   total_experience_years: z.string().refine((v) => v === "" || (!isNaN(Number(v)) && Number(v) >= 0 && Number(v) <= 60), "Enter a number between 0 and 60"),
   education: z.array(z.object({
     degree: z.string().trim().min(2, "Enter the degree"), institution: z.string().trim().min(2, "Enter the institution"),
-    department: z.string(), graduation_year: z.string().regex(/^(\d{4})?$/, "4-digit year"), grade: z.string(),
+    department: z.string(), graduation_year: z.string().refine((v) => v === "" || (/^\d{4}$/.test(v) && Number(v) >= 1970 && Number(v) <= THIS_YEAR + 6), `Enter a year between 1970 and ${THIS_YEAR + 6}`),
+    grade: z.string().refine((g) => { const t = g.trim(); if (!t) return true; const m = /^(\d{1,3}(?:\.\d{1,2})?)\s*(?:%|cgpa|gpa|\/\s*(?:4|5|10|100))?$/i.exec(t); return !!m && Number(m[1]) <= 100; }, "Enter a grade such as 8.5 CGPA, 8.5/10 or 72%"),
   })),
   experience: z.array(z.object({
     kind: z.enum(["job", "internship", "project"]), organization: z.string(), title: z.string().trim().min(2, "Enter a title"),
     start_date: z.string(), end_date: z.string(), description: z.string().max(3000),
-  })),
+  }).refine((x) => !x.start_date || !x.end_date || x.end_date >= x.start_date, { path: ["end_date"], message: "End date cannot be before the start date" })),
   skills_technical: z.array(z.string()), skills_soft: z.array(z.string()), skills_tool: z.array(z.string()), skills_certification: z.array(z.string()),
 });
 type Form = z.infer<typeof schema>;
@@ -86,6 +94,7 @@ export default function ProfileEditPage() {
   const { register, control, handleSubmit, setError, formState: { errors, isSubmitting } } = form;
   const edu = useFieldArray({ control, name: "education" });
   const exp = useFieldArray({ control, name: "experience" });
+  const country = useWatch({ control, name: "country" }) ?? "";
 
   if (isLoading) return <Spinner />;
   if (error || !p) return <Card><ErrorState message={errorMessage(error)} onRetry={() => void refetch()} /></Card>;
@@ -127,18 +136,18 @@ export default function ProfileEditPage() {
             <h2 className="font-semibold text-slate-900">Personal details</h2>
             <p className="text-xs text-slate-500">Name, email and mobile are managed under Account &amp; password.</p>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Date of birth" htmlFor="date_of_birth" error={errors.date_of_birth?.message}><TextInput id="date_of_birth" type="date" {...register("date_of_birth")} /></Field>
-              <Field label="Highest qualification" htmlFor="highest_qualification"><TextInput id="highest_qualification" placeholder="e.g. B.E. Mechanical" {...register("highest_qualification")} /></Field>
-              <Field label="City" htmlFor="city"><TextInput id="city" {...register("city")} /></Field>
-              <Field label="State" htmlFor="state"><TextInput id="state" {...register("state")} /></Field>
-              <Field label="Country" htmlFor="country"><TextInput id="country" {...register("country")} /></Field>
-              <Field label="Total experience (years)" htmlFor="total_experience_years" error={errors.total_experience_years?.message}><TextInput id="total_experience_years" inputMode="decimal" {...register("total_experience_years")} /></Field>
+              <Field label="Date of birth" htmlFor="date_of_birth" error={errors.date_of_birth?.message}><TextInput id="date_of_birth" type="date" min="1930-01-01" max={sixteenYearsAgo()} invalid={!!errors.date_of_birth} {...register("date_of_birth")} /></Field>
+              <Field label="Highest qualification" htmlFor="highest_qualification"><Controller control={control} name="highest_qualification" render={({ field }) => <SelectOther id="highest_qualification" value={field.value} onChange={field.onChange} options={QUALIFICATIONS} otherPlaceholder="e.g. B.Arch" />} /></Field>
+              <Field label="City" htmlFor="city" error={errors.city?.message}><TextInput id="city" maxLength={100} invalid={!!errors.city} {...register("city")} /></Field>
+              <Field label="State" htmlFor="state" error={errors.state?.message}>{country.trim() === "India" ? <Controller control={control} name="state" render={({ field }) => <SelectOther id="state" value={field.value} onChange={field.onChange} options={INDIAN_STATES} otherLabel="Other (type your own)" otherPlaceholder="State or union territory" invalid={!!errors.state} maxLength={100} />} /> : <TextInput id="state" maxLength={100} invalid={!!errors.state} {...register("state")} />}</Field>
+              <Field label="Country" htmlFor="country" error={errors.country?.message}><Controller control={control} name="country" render={({ field }) => <SelectOther id="country" value={field.value} onChange={field.onChange} options={COUNTRIES} otherPlaceholder="Country name" invalid={!!errors.country} maxLength={100} />} /></Field>
+              <Field label="Total experience (years)" htmlFor="total_experience_years" error={errors.total_experience_years?.message}><TextInput id="total_experience_years" inputMode="decimal" maxLength={4} placeholder="0 if fresher" invalid={!!errors.total_experience_years} {...register("total_experience_years")} /></Field>
             </div>
             <Field label="Address" htmlFor="address"><Textarea id="address" rows={2} {...register("address")} /></Field>
             <div className="grid gap-4 sm:grid-cols-3">
-              <Field label="LinkedIn" htmlFor="linkedin_url" error={errors.linkedin_url?.message}><TextInput id="linkedin_url" placeholder="https://" {...register("linkedin_url")} /></Field>
+              <Field label="LinkedIn" htmlFor="linkedin_url" error={errors.linkedin_url?.message}><TextInput id="linkedin_url" placeholder="https://www.linkedin.com/in/your-name" invalid={!!errors.linkedin_url} {...register("linkedin_url")} /></Field>
               <Field label="Portfolio" htmlFor="portfolio_url" error={errors.portfolio_url?.message}><TextInput id="portfolio_url" placeholder="https://" {...register("portfolio_url")} /></Field>
-              <Field label="GitHub" htmlFor="github_url" error={errors.github_url?.message}><TextInput id="github_url" placeholder="https://" {...register("github_url")} /></Field>
+              <Field label="GitHub" htmlFor="github_url" error={errors.github_url?.message}><TextInput id="github_url" placeholder="https://github.com/your-name" invalid={!!errors.github_url} {...register("github_url")} /></Field>
             </div>
           </Card>
 
@@ -148,11 +157,11 @@ export default function ProfileEditPage() {
             {edu.fields.map((f, i) => (
               <div key={f.id} className="space-y-3 rounded-lg border border-slate-200 p-4">
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="Degree" htmlFor={`edu-degree-${i}`} error={errors.education?.[i]?.degree?.message}><TextInput id={`edu-degree-${i}`} {...register(`education.${i}.degree`)} /></Field>
+                  <Field label="Degree" htmlFor={`edu-degree-${i}`} error={errors.education?.[i]?.degree?.message}><Controller control={control} name={`education.${i}.degree`} render={({ field }) => <SelectOther id={`edu-degree-${i}`} value={field.value} onChange={field.onChange} options={QUALIFICATIONS} otherPlaceholder="Degree name" invalid={!!errors.education?.[i]?.degree} />} /></Field>
                   <Field label="Institution" htmlFor={`edu-inst-${i}`} error={errors.education?.[i]?.institution?.message}><TextInput id={`edu-inst-${i}`} {...register(`education.${i}.institution`)} /></Field>
-                  <Field label="Department" htmlFor={`edu-dept-${i}`}><TextInput id={`edu-dept-${i}`} {...register(`education.${i}.department`)} /></Field>
-                  <Field label="Graduation year" htmlFor={`edu-year-${i}`} error={errors.education?.[i]?.graduation_year?.message}><TextInput id={`edu-year-${i}`} inputMode="numeric" maxLength={4} {...register(`education.${i}.graduation_year`)} /></Field>
-                  <Field label="Grade / CGPA" htmlFor={`edu-grade-${i}`}><TextInput id={`edu-grade-${i}`} {...register(`education.${i}.grade`)} /></Field>
+                  <Field label="Department / branch" htmlFor={`edu-dept-${i}`}><Controller control={control} name={`education.${i}.department`} render={({ field }) => <SelectOther id={`edu-dept-${i}`} value={field.value} onChange={field.onChange} options={DEPARTMENTS} otherPlaceholder="Department or branch" />} /></Field>
+                  <Field label="Graduation year" htmlFor={`edu-year-${i}`} error={errors.education?.[i]?.graduation_year?.message}><TextInput id={`edu-year-${i}`} inputMode="numeric" maxLength={4} placeholder="e.g. 2024" invalid={!!errors.education?.[i]?.graduation_year} {...register(`education.${i}.graduation_year`)} /></Field>
+                  <Field label="Grade / CGPA" htmlFor={`edu-grade-${i}`} error={errors.education?.[i]?.grade?.message}><TextInput id={`edu-grade-${i}`} maxLength={12} placeholder="e.g. 8.5 CGPA or 72%" invalid={!!errors.education?.[i]?.grade} {...register(`education.${i}.grade`)} /></Field>
                 </div>
                 <Button type="button" variant="ghost" size="sm" onClick={() => edu.remove(i)}><Trash2 className="size-4" /> Remove</Button>
               </div>
@@ -170,7 +179,7 @@ export default function ProfileEditPage() {
                   <Field label="Organization" htmlFor={`exp-org-${i}`}><TextInput id={`exp-org-${i}`} {...register(`experience.${i}.organization`)} /></Field>
                   <div className="grid grid-cols-2 gap-3">
                     <Field label="Start" htmlFor={`exp-start-${i}`}><TextInput id={`exp-start-${i}`} type="date" {...register(`experience.${i}.start_date`)} /></Field>
-                    <Field label="End" htmlFor={`exp-end-${i}`}><TextInput id={`exp-end-${i}`} type="date" {...register(`experience.${i}.end_date`)} /></Field>
+                    <Field label="End" htmlFor={`exp-end-${i}`} error={errors.experience?.[i]?.end_date?.message}><TextInput id={`exp-end-${i}`} type="date" invalid={!!errors.experience?.[i]?.end_date} {...register(`experience.${i}.end_date`)} /></Field>
                   </div>
                 </div>
                 <Field label="Description" htmlFor={`exp-desc-${i}`}><Textarea id={`exp-desc-${i}`} rows={3} {...register(`experience.${i}.description`)} /></Field>

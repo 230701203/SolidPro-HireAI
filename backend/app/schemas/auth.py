@@ -1,23 +1,14 @@
-import re
 from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, ValidationInfo, field_validator
 
-from app.core.security import NAME_MAX, NAME_MIN, validate_email_quality, validate_full_name, validate_password_strength
+from app.core.security import NAME_MAX, NAME_MIN, validate_email_quality, validate_full_name, validate_mobile, validate_password_strength
 from app.models import AccountStatus, Role
 
-_MOBILE_RE = re.compile(r"^\+?[0-9][0-9 \-]{7,17}$")
-
-
 def _clean_mobile(value: str | None) -> str | None:
-    if value is None:
+    if value is None or not value.strip():
         return None
-    value = value.strip()
-    if not value:
-        return None
-    if not _MOBILE_RE.match(value):
-        raise ValueError("Enter a valid mobile number (8-15 digits, optional + prefix)")
-    return value
+    return validate_mobile(value)
 
 
 class RegisterRequest(BaseModel):

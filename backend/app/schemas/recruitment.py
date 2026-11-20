@@ -1,5 +1,6 @@
 import re
 from datetime import date, datetime
+from urllib.parse import urlparse
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -13,6 +14,9 @@ from app.models import (
 )
 
 _URL_RE = re.compile(r"^https?://[^\s]+$", re.IGNORECASE)
+_GRADE_RE = re.compile(r"^(\d{1,3}(?:\.\d{1,2})?)\s*(?:%|cgpa|gpa|/\s*(?:4|5|10|100))?$", re.IGNORECASE)
+_CITY_RE = re.compile(r"^[^\W\d_][\w .'\-]*$", re.UNICODE)
+_HOSTS = {"linkedin_url": ("linkedin.com", "LinkedIn"), "github_url": ("github.com", "GitHub")}
 
 
 def _clean_list(values: list[str]) -> list[str]:
@@ -211,8 +215,26 @@ class EducationIn(BaseModel):
     degree: str = Field(min_length=2, max_length=150)
     institution: str = Field(min_length=2, max_length=200)
     department: str | None = Field(default=None, max_length=150)
-    graduation_year: int | None = Field(default=None, ge=1950, le=2100)
+    graduation_year: int | None = Field(default=None, ge=1970)
     grade: str | None = Field(default=None, max_length=50)
+
+    @field_validator("graduation_year")
+    @classmethod
+    def _year(cls, v: int | None) -> int | None:
+        if v is not None and v > date.today().year + 6:
+            raise ValueError(f"Enter a year between 1970 and {date.today().year + 6}")
+        return v
+
+    @field_validator("grade")
+    @classmethod
+    def _grade(cls, v: str | None) -> str | None:
+        if v is None or not v.strip():
+            return None
+        v = v.strip()
+        m = _GRADE_RE.match(v)
+        if not m or float(m.group(1)) > 100:
+            raise ValueError("Enter a grade such as 8.5 CGPA, 8.5/10 or 72%")
+        return v
 
 
 class EducationOut(EducationIn):
@@ -269,19 +291,35 @@ class ProfileIn(BaseModel):
 
     @field_validator("linkedin_url", "portfolio_url", "github_url")
     @classmethod
-    def _url(cls, v: str | None) -> str | None:
+    def _url(cls, v: str | None, info) -> str | None:
         if v is None or not v.strip():
             return None
         v = v.strip()
         if not _URL_RE.match(v):
             raise ValueError("Enter a full URL starting with http:// or https://")
+        host = urlparse(v).hostname or ""
+        if "." not in host:
+            raise ValueError("Enter a valid web address")
+        want = _HOSTS.get(info.field_name)
+        if want and not (host == want[0] or host.endswith("." + want[0])):
+            raise ValueError(f"Enter your {want[1]} link (it should be on {want[0]})")
+        return v
+
+    @field_validator("city", "state", "country")
+    @classmethod
+    def _place(cls, v: str | None) -> str | None:
+        if v is None or not v.strip():
+            return None
+        v = re.sub(r"\s+", " ", v.strip())
+        if len(v) < 2 or not _CITY_RE.match(v):
+            raise ValueError("Use letters, spaces and . ' - only")
         return v
 
     @field_validator("date_of_birth")
     @classmethod
     def _dob(cls, v: date | None) -> date | None:
-        if v and (v > date.today() or v.year < 1930):
-            raise ValueError("Enter a valid date of birth")
+        if v and (v.year < 1930 or v > date.today().replace(year=date.today().year - 16)):
+            raise ValueError("Enter a valid date of birth (you must be at least 16)")
         return v
 
 

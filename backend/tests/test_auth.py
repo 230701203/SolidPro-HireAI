@@ -246,7 +246,7 @@ def test_update_profile(client):
     register(client, "prof@gmail.com")
     verify(client, "prof@gmail.com")
     login(client, "prof@gmail.com")
-    r = client.patch("/api/auth/me", json={"full_name": "New Name", "mobile": "+911234567890"})
+    r = client.patch("/api/auth/me", json={"full_name": "New Name", "mobile": "+919123456789"})
     assert r.status_code == 200 and r.json()["full_name"] == "New Name"
     assert client.patch("/api/auth/me", json={"mobile": "bad"}).status_code == 422
 

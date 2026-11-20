@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { MailCheck } from "lucide-react";
@@ -8,13 +8,15 @@ import AuthLayout from "@/layouts/AuthLayout";
 import { Alert, Button, Field, PasswordInput, TextInput } from "@/components/ui";
 import { api, errorMessage, fieldErrors } from "@/services/api";
 import { CharCount, LiveHint, PasswordChecklist } from "@/components/LiveChecks";
-import { LIMITS, emailProblem, emailSchema, mobileSchema, nameProblem, nameSchema, passwordChecks } from "@/utils/validation";
+import { mobileProblem } from "@/utils/mobile";
+import MobileInput from "@/components/MobileInput";
+import { LIMITS, emailProblem, emailSchema, nameProblem, nameSchema, passwordChecks } from "@/utils/validation";
 
 const schema = z
   .object({
     full_name: nameSchema,
     email: emailSchema,
-    mobile: z.string().optional().refine((v) => !v || mobileSchema.safeParse(v).success, "Enter a valid mobile number (8 to 15 digits, optional + prefix)"),
+    mobile: z.string().optional().superRefine((v, ctx) => { const p = v ? mobileProblem(v) : null; if (p) ctx.addIssue({ code: "custom", message: p }); }),
     password: z.string().min(1, "Enter a password"),
     confirm: z.string(),
     accept_terms: z.boolean().refine((v) => v, "You must accept the privacy notice"),
@@ -31,6 +33,7 @@ export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null);
   const {
     register,
+    control,
     handleSubmit,
     setError: setFieldError,
     watch,
@@ -43,10 +46,6 @@ export default function RegisterPage() {
 
   const onSubmit = async (v: Form) => {
     setError(null);
-    if (v.mobile && !mobileSchema.safeParse(v.mobile).success) {
-      setFieldError("mobile", { message: "Enter a valid mobile number" });
-      return;
-    }
     try {
       const { data } = await api.post<{ message: string }>("/auth/register", {
         full_name: v.full_name,
@@ -95,7 +94,7 @@ export default function RegisterPage() {
           {!errors.email && <LiveHint value={emailValue} problem={emailProblem(emailValue)} okText="Email format looks good" />}
         </Field>
         <Field label="Mobile number" htmlFor="mobile" error={errors.mobile?.message} hint="Required for applicants. Optional for company email accounts.">
-          <TextInput id="mobile" type="tel" autoComplete="tel" placeholder="+91 98765 43210" maxLength={18} invalid={!!errors.mobile} {...register("mobile")} />
+          <Controller control={control} name="mobile" render={({ field }) => <MobileInput id="mobile" value={field.value ?? ""} onChange={field.onChange} invalid={!!errors.mobile} />} />
         </Field>
         <Field label="Password" htmlFor="password" error={isSubmitted ? errors.password?.message : undefined}>
           <PasswordInput id="password" autoComplete="new-password" maxLength={LIMITS.passwordMax} aria-describedby="pw-rules" invalid={!!errors.password && pwValue.length > 0} {...register("password")} />
