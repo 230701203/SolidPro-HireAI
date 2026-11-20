@@ -1,9 +1,8 @@
-import { Link } from "react-router-dom";
+﻿import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Bell, Briefcase, CheckCircle2, ClipboardList, FileText, ShieldCheck, UserCheck, UserCog, Users } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { NAV } from "@/layouts/navigation";
 import { api, errorMessage } from "@/services/api";
 import { Alert, Badge, Card, EmptyState, ErrorState, PageHeader, Spinner } from "@/components/ui";
 import { timeAgo } from "@/utils/format";
@@ -100,36 +99,10 @@ function AdminDashboard({ d }: { d: DashboardSummary }) {
   );
 }
 
-function ModuleDirectory({ items }: { items: typeof NAV[keyof typeof NAV] }) {
-  return (
-    <section className="mb-8" aria-labelledby="modules-heading">
-      <div className="mb-4">
-        <h2 id="modules-heading" className="text-lg font-semibold text-slate-900">Modules</h2>
-        <p className="mt-1 text-sm text-slate-500">Quick access to all the sections available to your account.</p>
-      </div>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {items.map(({ to, label, icon: Icon }) => (
-          <Link
-            key={to}
-            to={to}
-            className="group flex min-h-24 items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 transition hover:border-brand-300 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2"
-          >
-            <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700 transition group-hover:bg-brand-100">
-              <Icon className="size-5" aria-hidden />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm font-semibold text-slate-800">{label}</span>
-              <span className="mt-1 block text-xs text-slate-500">Open module</span>
-            </span>
-          </Link>
-        ))}
-      </div>
-    </section>
-  );
-}
+
 
 export default function DashboardPage() {
-  const { user, hasPermission } = useAuth();
+  const { user } = useAuth();
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["dashboard", user?.id],
     queryFn: async () => (await api.get<DashboardSummary>("/dashboard/summary")).data,
@@ -137,16 +110,11 @@ export default function DashboardPage() {
 
   if (!user) return null;
   const titles = { admin: "Admin dashboard", employee: "Employee dashboard", applicant: "My dashboard" };
-  const modules = NAV[user.role].filter(
-    (item) =>
-      item.to !== "/dashboard" &&
-      (!item.permission || hasPermission(item.permission)) &&
-      (!item.anyPermission || item.anyPermission.some(hasPermission)),
-  );
+
   return (
     <>
       <PageHeader title={titles[user.role]} description={`Welcome back, ${user.full_name}.`} />
-      <ModuleDirectory items={modules} />
+
       {isLoading ? (
         <Spinner />
       ) : error || !data ? (
