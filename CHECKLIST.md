@@ -90,6 +90,7 @@ Status legend: ✅ done and tested · 🟡 partial · ⬜ not started
 | AI writes MCQ and Repeat-the-Sentence items; aptitude comes only from the reusable bank, never invented by AI (shortfalls are reported, not filled) | ✅ | backend tests |
 | MCQs filtered to the opening's skills and the candidate's listed skills; unrelated-skill questions are dropped and reported | ✅ | backend tests |
 | Question bank: starter set (116 hand-written aptitude questions across 6 topics, including common campus-placement types: time and work, speed, ratio, probability, permutations, blood relations, directions, series, grammar) plus mock technical MCQs for OOP, DSA, OS, networking, C and Java; maintained by staff with `manage_question_bank`. Not expert-reviewed | ✅ | backend + browser |
+| Excel import into a question bank: downloadable template, dry-run check with per-row errors, then import of valid rows; duplicates skipped; imported questions marked unverified and editable afterwards; `manage_question_bank` only; audited | ✅ | backend tests (8) + frontend tests + browser |
 | Per-question review: approve, reject (with reason), edit, regenerate, delete, add by hand, add from bank; any edit needs re-approval | ✅ | backend + browser |
 | Placeholders (mock mode) can never be approved; bulk approve skips them | ✅ | backend + component tests |
 | Whole-assessment approval blocked until every section has questions and none are pending | ✅ | backend + browser |
