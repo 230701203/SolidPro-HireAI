@@ -153,20 +153,22 @@ describe("registration form", () => {
     const list = screen.getByTestId("password-checklist");
     const status = (label: RegExp) => within(list).getByText(label).closest("li")!.textContent;
     await userEvent.type(pw, "abc");
-    expect(status(/lowercase letter/)).toMatch(/\(met\)/);
-    expect(status(/uppercase letter/)).toMatch(/\(not met\)/);
+    expect(status(/Lowercase a-z/)).toMatch(/\(met\)/);
+    expect(status(/Uppercase A-Z/)).toMatch(/\(not met\)/);
     expect(within(list).getByText(/Strength: Weak/)).toBeInTheDocument();
+    expect(within(list).queryByRole("alert")).toBeNull();  // unmet rules are neutral, not errors, while still typing
     await userEvent.type(pw, "DEF1");
-    expect(status(/uppercase letter/)).toMatch(/\(met\)/);
-    expect(status(/A number/)).toMatch(/\(met\)/);
-    expect(status(/A symbol/)).toMatch(/\(not met\)/);
+    expect(status(/Uppercase A-Z/)).toMatch(/\(met\)/);
+    expect(status(/Number 0-9/)).toMatch(/\(met\)/);
+    expect(status(/Symbol ! @ #/)).toMatch(/\(not met\)/);
     await userEvent.type(pw, "!ghijk");
-    expect(status(/A symbol/)).toMatch(/\(met\)/);
-    expect(status(/10 to 64 characters/)).toMatch(/\(met\)/);
+    expect(status(/Symbol ! @ #/)).toMatch(/\(met\)/);
+    expect(status(/10\+ characters/)).toMatch(/\(met\)/);
     expect(within(list).getByText(/Strength: (Good|Strong)/)).toBeInTheDocument();
     expect(screen.getByText("13 / 64")).toBeInTheDocument();
     await userEvent.type(pw, "password");
-    expect(status(/No common words/)).toMatch(/\(not met\)/);
+    expect(within(list).getByRole("alert")).toHaveTextContent(/Avoid common words/);
+    expect(within(list).getByText(/Strength: Weak/)).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText("Confirm password"), "abcDEF1!ghijkpassword");
     expect(await screen.findByText("Passwords match")).toBeInTheDocument();
   });
@@ -207,8 +209,7 @@ describe("registration form", () => {
     mount(<RegisterPage />);
     await userEvent.type(await screen.findByLabelText("Email address"), "priya.raman@gmail.com");
     await userEvent.type(screen.getByLabelText("Password"), "Priya.raman#2026X");
-    const item = within(screen.getByTestId("password-checklist")).getByText(/Does not contain your email name/).closest("li")!;
-    expect(item.textContent).toMatch(/\(not met\)/);
+    expect(within(screen.getByTestId("password-checklist")).getByRole("alert")).toHaveTextContent(/Do not include your email name/);
   });
 
   it("refuses a 9-digit Indian mobile number with a live message and ignores non-digits", async () => {
