@@ -143,7 +143,7 @@ def seed_dev() -> None:
                 email=email,
                 password_hash=hash_password(pw),
                 full_name=name,
-                mobile="+910000000000" if role == Role.APPLICANT else None,
+                mobile="+919000000000" if role == Role.APPLICANT else None,
                 role=role,
                 status=status,
                 email_verified_at=utcnow(),

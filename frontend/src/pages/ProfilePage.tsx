@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useAuth } from "@/contexts/AuthContext";
 import { api, errorMessage, fieldErrors } from "@/services/api";
 import { Alert, Button, Card, Field, PageHeader, RoleBadge, StatusBadge, TextInput } from "@/components/ui";
+import MobileInput from "@/components/MobileInput";
 import PasswordChangeForm from "@/components/PasswordChangeForm";
 import { useToast } from "@/components/Toast";
 import { formatDateTime } from "@/utils/format";
@@ -23,6 +24,7 @@ export default function ProfilePage() {
   const [error, setError] = useState<string | null>(null);
   const {
     register,
+    control,
     handleSubmit,
     setError: setFieldError,
     formState: { errors, isSubmitting, isDirty },
@@ -62,7 +64,7 @@ export default function ProfilePage() {
               <TextInput id="full_name" invalid={!!errors.full_name} {...register("full_name")} />
             </Field>
             <Field label="Mobile number" htmlFor="mobile" error={errors.mobile?.message}>
-              <TextInput id="mobile" type="tel" invalid={!!errors.mobile} {...register("mobile")} />
+              <Controller control={control} name="mobile" render={({ field }) => <MobileInput id="mobile" value={field.value} onChange={field.onChange} invalid={!!errors.mobile} />} />
             </Field>
             <Button type="submit" loading={isSubmitting} disabled={!isDirty}>Save changes</Button>
           </form>

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { mobileProblem } from "./mobile";
 
 /**
  * Input rules shared by the sign-in, register, reset and change-password forms.
@@ -72,4 +73,4 @@ export const makePasswordSchema = (getEmail?: () => string | undefined) =>
     if (bad) ctx.addIssue({ code: "custom", message: `Password needs: ${bad.label.toLowerCase()}` });
   });
 export const passwordSchema = makePasswordSchema();
-export const mobileSchema = z.string().regex(/^\+?[0-9][0-9 -]{7,17}$/, "Enter a valid mobile number (8 to 15 digits, optional + prefix)");
+export const mobileSchema = z.string().superRefine((v, ctx) => { const p = mobileProblem(v); if (p) ctx.addIssue({ code: "custom", message: p }); });

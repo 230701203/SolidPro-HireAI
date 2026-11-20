@@ -211,19 +211,30 @@ describe("registration form", () => {
     expect(item.textContent).toMatch(/\(not met\)/);
   });
 
+  it("refuses a 9-digit Indian mobile number with a live message and ignores non-digits", async () => {
+    unauthenticated();
+    mount(<RegisterPage />);
+    const box = await screen.findByLabelText("Mobile number");
+    await userEvent.type(box, "98765-4321ab");
+    expect(box).toHaveValue("987654321");
+    expect(await screen.findByText(/exactly 10 digits \(you entered 9\)/)).toBeInTheDocument();
+    await userEvent.type(box, "0");
+    await waitFor(() => expect(screen.queryByText(/exactly 10 digits/)).not.toBeInTheDocument());
+  });
+
   it("submits valid data and shows the check-your-email screen", async () => {
     unauthenticated();
     const post = vi.spyOn(api, "post").mockResolvedValue({ data: { message: "Check your inbox for a verification link to activate your account." } });
     mount(<RegisterPage />);
     await userEvent.type(await screen.findByLabelText("Full name"), "Jane Doe");
     await userEvent.type(screen.getByLabelText("Email address"), "jane@gmail.com");
-    await userEvent.type(screen.getByLabelText("Mobile number"), "+919876543210");
+    await userEvent.type(screen.getByLabelText("Mobile number"), "9876543210");
     await userEvent.type(screen.getByLabelText("Password"), "Str0ngPassw0rd!");
     await userEvent.type(screen.getByLabelText("Confirm password"), "Str0ngPassw0rd!");
     await userEvent.click(screen.getByRole("checkbox"));
     await userEvent.click(screen.getByRole("button", { name: "Create account" }));
     await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
-    expect(post.mock.calls[0][1]).toMatchObject({ email: "jane@gmail.com", accept_terms: true, mobile: "+919876543210" });
+    expect(post.mock.calls[0][1]).toMatchObject({ email: "jane@gmail.com", accept_terms: true, mobile: "+91 9876543210" });
     expect(await screen.findByText(/verification link/)).toBeInTheDocument();
   });
 });
