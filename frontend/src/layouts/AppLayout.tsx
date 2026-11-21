@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/services/api";
+import ThemeToggle from "@/components/ThemeToggle";
 import { GROUP_ICONS, NAV, type NavItem } from "./navigation";
 import { RoleBadge } from "@/components/ui";
 
@@ -325,6 +326,7 @@ export default function AppLayout() {
           <div className="flex-1" />
 
           <DateTimeDisplay />
+          <ThemeToggle />
           <NotificationBell />
           <ProfileMenu />
         </header>
