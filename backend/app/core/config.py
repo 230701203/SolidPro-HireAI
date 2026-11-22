@@ -43,8 +43,10 @@ class Settings(BaseSettings):
     bulk_max_attempts: int = 3  # automatic processing attempts per file
 
     # AI. "mock" is deterministic keyword matching and is always labelled as MOCK in the UI.
-    ai_provider: Literal["mock", "anthropic"] = "mock"
+    ai_provider: Literal["mock", "anthropic", "gemini"] = "mock"
     anthropic_api_key: str = ""
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-2.5-flash"  # used when AI_PROVIDER=gemini; AI_MODEL stays the Anthropic model
     ai_model: str = "claude-sonnet-5-5"
     ai_timeout_seconds: int = 60
     # Speech-to-text for Repeat the Sentence (Phase 6)
