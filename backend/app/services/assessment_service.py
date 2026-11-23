@@ -399,7 +399,7 @@ def generate(db: Session, user: User, req: GenerateRequest, request: Request) ->
                                   text=s.text, difficulty=Difficulty(s.difficulty), topic="Repeat the sentence", marks=cfg.rs_marks))
     a.generation_notes = notes
     if provider.is_mock:
-        notes.insert(0, "MOCK mode: questions come from a small curated pool or are placeholders. Set AI_PROVIDER=anthropic for job- and resume-specific questions.")
+        notes.insert(0, "MOCK mode: questions come from a small curated pool or are placeholders. Set AI_PROVIDER=gemini (or anthropic) for job- and resume-specific questions.")
     _log(db, user, request, "assessment.generated", a, application_id=app.id, provider=provider.name, mock=provider.is_mock,
          counts={"mcq": len(mcqs), "aptitude": len(picks), "repeat_sentence": len(sentences)})
     db.commit()

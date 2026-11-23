@@ -121,6 +121,7 @@ app/ai/
   schemas.py            AnalysisInput (what the model may see), ResumeAnalysisResult (validated output), AIProviderError
   mock_provider.py      deterministic keyword matcher, always labelled MOCK
   anthropic_provider.py Messages API over httpx; untrusted-resume delimiting; JSON parsing + validation
+  gemini_provider.py    Gemini generateContent over httpx; reuses the Anthropic prompts and validation
   factory.py            picks the provider from settings; no silent fallback
 app/services/analysis_service.py   permissions, run, store, override, audit
 ```

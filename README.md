@@ -70,7 +70,15 @@ AI_PROVIDER=anthropic
 ANTHROPIC_API_KEY=<your key>      # never commit this
 AI_MODEL=claude-sonnet-5-5
 ```
-The same setting drives assessment generation. Online tests run in the applicant's browser (speech synthesis and MediaRecorder), so use a current Chrome, Edge or Safari; the sweeper settings are in `.env.example`. If `anthropic` is selected without a key, analysis returns an error; it never falls back to mock silently. AI output is advisory: it never approves or rejects anyone and applicants never see it.
+To use **Google Gemini** instead:
+```
+AI_PROVIDER=gemini
+GEMINI_API_KEY=<your key>         # never commit this
+GEMINI_MODEL=gemini-2.5-flash     # any Gemini model your key can use
+```
+Restart the backend after changing `backend/.env`. Resume text is sent to the provider (names and contact details are not), so check the provider's data-use terms first: free Gemini API keys may allow Google to use submitted content to improve its products, which is not appropriate for real applicant data. Use a paid-tier key for that.
+
+The same setting drives assessment generation. Online tests run in the applicant's browser (speech synthesis and MediaRecorder), so use a current Chrome, Edge or Safari; the sweeper settings are in `.env.example`. If `anthropic` or `gemini` is selected without a key, analysis returns an error; it never falls back to mock silently. AI output is advisory: it never approves or rejects anyone and applicants never see it.
 
 ## Security summary
 Argon2 password hashes · httpOnly SameSite cookie sessions (tokens never readable by JS) · hashed single-use verification/reset tokens · account lockout + rate limiting on sensitive endpoints · server-side role/permission checks on every request · sessions revoked on password change/suspension · audit log of security events · no secrets in source (`.env` is git-ignored).

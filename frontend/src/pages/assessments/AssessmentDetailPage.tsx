@@ -168,7 +168,7 @@ export default function AssessmentDetailPage() {
     <>
       <PageHeader title={d.title} description={`${d.candidate_name} · ${d.opening_title}`} actions={<Link to="/assessments" className="text-sm text-brand-700 hover:underline">← All assessments</Link>} />
       <div className="mb-4 space-y-2">
-        {d.ai.is_mock && <Alert kind="warning"><strong>MOCK mode.</strong> Questions come from a small curated pool or are placeholders. Set <code>AI_PROVIDER=anthropic</code> for job- and resume-specific questions.</Alert>}
+        {d.ai.is_mock && <Alert kind="warning"><strong>MOCK mode.</strong> Questions come from a small curated pool or are placeholders. Set <code>AI_PROVIDER=gemini</code> (or anthropic) for job- and resume-specific questions.</Alert>}
         {d.generation_notes.filter((n) => !n.startsWith("MOCK")).map((n) => <Alert key={n} kind="info">{n}</Alert>)}
         <p className="text-xs text-slate-500">{d.notice}</p>
       </div>

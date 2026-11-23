@@ -113,7 +113,7 @@ export default function AnalysisPanel({ applicationId }: { applicationId: string
         {data.can_run && <Button size="sm" variant="secondary" loading={run.isPending} disabled={!data.ai.configured} onClick={() => run.mutate()}>{data.latest ? "Run again" : "Run analysis"}</Button>}
       </div>
       <div className="mb-4 space-y-2">
-        {data.ai.is_mock && <Alert kind="warning"><strong>MOCK mode.</strong> This is a simple keyword match, not real AI. Set <code>AI_PROVIDER=anthropic</code> and an API key for real analysis.</Alert>}
+        {data.ai.is_mock && <Alert kind="warning"><strong>MOCK mode.</strong> This is a simple keyword match, not real AI. Set <code>AI_PROVIDER=gemini</code> (or anthropic) and an API key for real analysis.</Alert>}
         {!data.ai.configured && <Alert kind="error">The configured AI provider has no API key, so analysis cannot run.</Alert>}
         <p className="text-xs text-slate-500">{data.notice}</p>
       </div>

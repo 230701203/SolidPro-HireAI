@@ -59,7 +59,7 @@ Status legend: ✅ done and tested · 🟡 partial · ⬜ not started
 
 | Feature | Status | Verified by |
 |---|---|---|
-| Provider abstraction: `mock` (default) and `anthropic`; chosen by `AI_PROVIDER`, never a silent fallback | ✅ | backend tests |
+| Provider abstraction: `mock` (default), `anthropic` and `gemini`; chosen by `AI_PROVIDER`, never a silent fallback. Gemini and Anthropic providers are tested over a mocked transport only, never run against the live APIs | ✅ | backend tests |
 | Mock mode clearly labelled (API field `is_mock`, `[MOCK]` summary, warning banner in the UI) | ✅ | backend + component + browser |
 | Structured report: score 0-100, confidence, matched / missing skills, experience and education notes, strengths, gaps, things to verify, interview topics | ✅ | schema tests |
 | Output validated and clamped; unusable provider output becomes a safe error, never a half-report | ✅ | backend tests |
