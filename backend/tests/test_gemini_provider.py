@@ -49,7 +49,6 @@ def test_gemini_failures_are_safe_messages(status, body, fragment):
         p.analyze_resume(_input())
     assert fragment in str(e.value) and "g-secret" not in str(e.value)
 
-
 def test_gemini_network_error_missing_key_and_bad_model_name():
     def boom(req):
         raise httpx.ConnectError("down")
@@ -90,3 +89,60 @@ def test_factory_selects_gemini_and_never_falls_back_silently(monkeypatch):
     with pytest.raises(AIProviderError):
         get_provider()
     assert provider_status()["configured"] is False
+
+def test_gemini_retries_temporary_server_error(monkeypatch):
+    import app.ai.gemini_provider as gemini_module
+
+    calls = {"count": 0}
+
+    def handler(req):
+        calls["count"] += 1
+        if calls["count"] < 3:
+            return httpx.Response(503, json={"error": "temporary"})
+        return httpx.Response(200, json=_reply(GOOD))
+
+    monkeypatch.setattr(gemini_module.time, "sleep", lambda seconds: None)
+
+    provider = GeminiProvider("k", "m", client=_transport(handler))
+    result = provider.analyze_resume(_input())
+
+    assert result.match_score == 100
+    assert calls["count"] == 3
+
+
+def test_gemini_stops_after_maximum_retries(monkeypatch):
+    import app.ai.gemini_provider as gemini_module
+
+    calls = {"count": 0}
+
+    def handler(req):
+        calls["count"] += 1
+        return httpx.Response(503, json={"error": "temporary"})
+
+    monkeypatch.setattr(gemini_module.time, "sleep", lambda seconds: None)
+
+    provider = GeminiProvider("k", "m", client=_transport(handler))
+
+    with pytest.raises(AIProviderError, match=r"error \(503\)"):
+        provider.analyze_resume(_input())
+
+    assert calls["count"] == 3
+
+
+def test_gemini_does_not_retry_permanent_error(monkeypatch):
+    import app.ai.gemini_provider as gemini_module
+
+    calls = {"count": 0}
+
+    def handler(req):
+        calls["count"] += 1
+        return httpx.Response(400, json={"error": {"message": "bad request"}})
+
+    monkeypatch.setattr(gemini_module.time, "sleep", lambda seconds: None)
+
+    provider = GeminiProvider("k", "m", client=_transport(handler))
+
+    with pytest.raises(AIProviderError, match=r"error \(400\)"):
+        provider.analyze_resume(_input())
+
+    assert calls["count"] == 1

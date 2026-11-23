@@ -5,6 +5,7 @@ even without `manage_interviews`, but still only within openings they are assign
 """
 
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from fastapi import BackgroundTasks, Request
 from sqlalchemy import func, select
@@ -34,7 +35,7 @@ UPCOMING = (InterviewStatus.SCHEDULED, InterviewStatus.RESCHEDULED)
 
 
 def _fmt(dt: datetime) -> str:
-    return dt.astimezone().strftime("%d %b %Y, %H:%M %Z")
+    return dt.astimezone(ZoneInfo("Asia/Kolkata")).strftime("%d %b %Y, %H:%M %Z")
 
 
 def _staff(user: User) -> None:

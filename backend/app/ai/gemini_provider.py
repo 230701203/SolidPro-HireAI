@@ -5,6 +5,7 @@ resume text is delimited as untrusted data, only valid items are kept, and failu
 
 NOTE: covered by tests that use a mocked HTTP transport. Not run against the live API in development.
 """
+import time
 
 import httpx
 
@@ -30,40 +31,111 @@ class GeminiProvider(AnthropicProvider):
         body = {
             "systemInstruction": {"parts": [{"text": system}]},
             "contents": [{"role": "user", "parts": [{"text": user}]}],
-            # Gemini 2.5 models count internal "thinking" against the output limit, so leave generous room.
-            "generationConfig": {"temperature": 0, "maxOutputTokens": max(max_tokens * 4, 4096), "responseMimeType": "application/json"},
+            "generationConfig": {
+                "temperature": 0,
+                "maxOutputTokens": max(max_tokens * 4, 4096),
+                "responseMimeType": "application/json",
+            },
         }
+
         url = f"{API_BASE}/{self.model}:generateContent"
-        headers = {"x-goog-api-key": self.api_key, "content-type": "application/json"}  # key in a header, never in the URL or logs
-        try:
-            if self._client is not None:
-                resp = self._client.post(url, json=body, headers=headers)
-            else:
-                with httpx.Client(timeout=self.timeout) as c:
-                    resp = c.post(url, json=body, headers=headers)
-        except httpx.HTTPError as e:
-            raise AIProviderError("Could not reach the AI service. Please try again later.") from e
+        headers = {
+            "x-goog-api-key": self.api_key,
+            "content-type": "application/json",
+        }
+
+        retryable_statuses = {408, 429, 500, 502, 503, 504}
+        max_attempts = 3
+
+        for attempt in range(max_attempts):
+            try:
+                if self._client is not None:
+                    resp = self._client.post(
+                        url, json=body, headers=headers
+                    )
+                else:
+                    with httpx.Client(timeout=self.timeout) as client:
+                        resp = client.post(
+                            url, json=body, headers=headers
+                        )
+
+            except httpx.HTTPError as e:
+                if attempt == max_attempts - 1:
+                    raise AIProviderError(
+                        "Could not reach the AI service after multiple attempts. Please try again later."
+                    ) from e
+
+                time.sleep(2 ** attempt)
+                continue
+
+            if resp.status_code not in retryable_statuses:
+                break
+
+            if attempt == max_attempts - 1:
+                break
+
+            retry_after = resp.headers.get("Retry-After")
+
+            try:
+                delay = min(float(retry_after), 8) if retry_after else 2 ** attempt
+            except ValueError:
+                delay = 2 ** attempt
+
+            time.sleep(delay)
+
+        # Handle the final HTTP response outside the retry loop.
         if resp.status_code in (400, 401, 403):
-            # Gemini reports a bad key as 400 API_KEY_INVALID as well as 401/403.
             if resp.status_code != 400 or "API_KEY" in resp.text:
-                raise AIProviderError("The AI service rejected the configured API key.")
+                raise AIProviderError(
+                    "The AI service rejected the configured API key."
+                )
+
         if resp.status_code == 404:
-            raise AIProviderError("The configured Gemini model was not found. Check AI_MODEL / GEMINI_MODEL.")
+            raise AIProviderError(
+                "The configured Gemini model was not found. Check AI_MODEL / GEMINI_MODEL."
+            )
+
         if resp.status_code == 429:
-            raise AIProviderError("The AI service is rate limited right now. Please try again shortly.")
+            raise AIProviderError(
+                "The AI service is rate limited right now. Please try again shortly."
+            )
+
         if resp.status_code >= 400:
-            raise AIProviderError(f"The AI service returned an error ({resp.status_code}).")
+            raise AIProviderError(
+                f"The AI service returned an error ({resp.status_code})."
+            )
+
         try:
             data = resp.json()
+
             if (data.get("promptFeedback") or {}).get("blockReason"):
-                raise AIProviderError("The AI service declined to process this content.")
-            cands = data.get("candidates") or []
-            if not cands:
-                raise AIProviderError("The AI service returned no answer. Please try again.")
-            parts = (cands[0].get("content") or {}).get("parts") or []
-            text = "".join(p.get("text", "") for p in parts if isinstance(p, dict) and not p.get("thought"))
+                raise AIProviderError(
+                    "The AI service declined to process this content."
+                )
+
+            candidates = data.get("candidates") or []
+
+            if not candidates:
+                raise AIProviderError(
+                    "The AI service returned no answer. Please try again."
+                )
+
+            parts = (candidates[0].get("content") or {}).get("parts") or []
+
+            text = "".join(
+                part.get("text", "")
+                for part in parts
+                if isinstance(part, dict) and not part.get("thought")
+            )
+
         except (ValueError, AttributeError, TypeError) as e:
-            raise AIProviderError("The AI service returned an unreadable answer. Please try again.") from e
+            raise AIProviderError(
+                "The AI service returned an unreadable answer. Please try again."
+            ) from e
+
         if not text.strip():
-            raise AIProviderError("The AI service returned an empty answer. Please try again.")
+            raise AIProviderError(
+                "The AI service returned an empty answer. Please try again."
+            )
+
         return text

@@ -13,6 +13,7 @@ os.environ.update(
     {
         "DATABASE_URL": TEST_DB_URL,
         "ENVIRONMENT": "test",
+        "AI_PROVIDER": "mock",
         "SECRET_KEY": "test-secret-key-that-is-long-enough-1234567890",
         "RATE_LIMIT_ENABLED": "false",
         "COMPANY_EMAIL_DOMAINS": "solidpro-test.com",

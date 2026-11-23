@@ -12,6 +12,7 @@ Rules enforced here (never only in the UI):
 import hashlib
 import secrets
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from fastapi import BackgroundTasks, Request
 from sqlalchemy import func, select
@@ -71,7 +72,7 @@ def _new_token() -> tuple[str, str]:
 
 
 def _fmt(dt: datetime) -> str:
-    return dt.astimezone().strftime("%d %b %Y, %H:%M %Z")
+    return dt.astimezone(ZoneInfo("Asia/Kolkata")).strftime("%d %b %Y, %H:%M %Z")
 
 
 def log_event(db: Session, sch: AssessmentSchedule, kind: str, *, actor: User | None = None, attempt_id: int | None = None,
