@@ -5,6 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Solid HIRE - recruitment and assessment management" />
     <title>Solid HIRE</title>
+    <meta name="color-scheme" content="light dark" />
+    <script>
+      /* Apply the saved (or system) theme before first paint so there is no white flash. */
+      try {
+        var t = localStorage.getItem("solid-hire-theme");
+        if (t === "dark" || (t !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches)) document.documentElement.classList.add("dark");
+      } catch (e) {}
+    </script>
     <link rel="icon" type="image/svg+xml" href="/solidprogroup_logo.png" />
   </head>
   <body>
