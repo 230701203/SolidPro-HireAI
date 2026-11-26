@@ -7,6 +7,7 @@ import { Plus, Trash2, Upload } from "lucide-react";
 import { api, errorMessage, fieldErrors } from "@/services/api";
 import { Alert, Button, Card, ErrorState, Field, PageHeader, Select, Spinner, Textarea, TextInput } from "@/components/ui";
 import TagInput from "@/components/TagInput";
+import { useUnsavedChangesGuard } from "@/components/useUnsavedChangesGuard";
 import SelectOther from "@/components/SelectOther";
 import { COUNTRIES, DEPARTMENTS, INDIAN_STATES, QUALIFICATIONS } from "@/utils/presets";
 import ResumeLinks from "@/components/ResumeLinks";
@@ -91,7 +92,9 @@ export default function ProfileEditPage() {
   const [serverError, setServerError] = useState<string | null>(null);
   const { data: p, isLoading, error, refetch } = useQuery({ queryKey: ["my-profile"], queryFn: async () => (await api.get<Profile>("/applicants/profile")).data });
   const form = useForm<Form>({ resolver: zodResolver(schema), defaultValues: p ? toForm(p) : undefined, values: p ? toForm(p) : undefined });
-  const { register, control, handleSubmit, setError, formState: { errors, isSubmitting } } = form;
+  const { register, control, handleSubmit, setError, formState: { errors, isSubmitting, isDirty } } = form;
+  const saveRef = useRef<() => Promise<boolean>>(async () => true);
+  const guard = useUnsavedChangesGuard(isDirty, () => saveRef.current());
   const edu = useFieldArray({ control, name: "education" });
   const exp = useFieldArray({ control, name: "experience" });
   const country = useWatch({ control, name: "country" }) ?? "";
@@ -99,7 +102,7 @@ export default function ProfileEditPage() {
   if (isLoading) return <Spinner />;
   if (error || !p) return <Card><ErrorState message={errorMessage(error)} onRetry={() => void refetch()} /></Card>;
 
-  const onSubmit = async (v: Form) => {
+  const onSubmit = async (v: Form): Promise<boolean> => {
     setServerError(null);
     const skills = KINDS.flatMap((k) => v[`skills_${k}` as const].map((name) => ({ name, kind: k })));
     try {
@@ -114,14 +117,18 @@ export default function ProfileEditPage() {
       toast.success("Profile saved.");
       void qc.invalidateQueries({ queryKey: ["my-profile"] });
       void qc.invalidateQueries({ queryKey: ["dashboard"] });
+      return true;
     } catch (e) {
       Object.entries(fieldErrors(e)).forEach(([k, m]) => { try { setError(k as keyof Form, { message: m }); } catch { /* nested server path */ } });
       setServerError(errorMessage(e));
+      return false;
     }
   };
+  saveRef.current = async () => { let ok = false; await handleSubmit(async (v) => { ok = await onSubmit(v); })(); return ok; };
 
   return (
     <>
+      {guard}
       <PageHeader title="My profile" description="Keep this up to date. Recruiters see it when you apply." />
       <Card className="mb-6 p-5">
         <div className="flex items-center justify-between text-sm"><span className="font-medium text-slate-900">Profile completion</span><span className="tabular-nums">{p.completion}%</span></div>

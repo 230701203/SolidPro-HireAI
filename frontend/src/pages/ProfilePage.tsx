@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { api, errorMessage, fieldErrors } from "@/services/api";
 import { Alert, Button, Card, Field, PageHeader, RoleBadge, StatusBadge, TextInput } from "@/components/ui";
 import MobileInput from "@/components/MobileInput";
+import { useUnsavedChangesGuard } from "@/components/useUnsavedChangesGuard";
 import PasswordChangeForm from "@/components/PasswordChangeForm";
 import { useToast } from "@/components/Toast";
 import { formatDateTime } from "@/utils/format";
@@ -31,23 +32,30 @@ export default function ProfilePage() {
     reset,
   } = useForm<Form>({ resolver: zodResolver(schema), defaultValues: { full_name: user?.full_name ?? "", mobile: user?.mobile ?? "" } });
 
+  const saveRef = useRef<() => Promise<boolean>>(async () => true);
+  const guard = useUnsavedChangesGuard(isDirty, () => saveRef.current());
+
   if (!user) return null;
 
-  const onSubmit = async (v: Form) => {
+  const onSubmit = async (v: Form): Promise<boolean> => {
     setError(null);
     try {
       const { data } = await api.patch<User>("/auth/me", { full_name: v.full_name, mobile: v.mobile || null });
       setUser(data);
       reset({ full_name: data.full_name, mobile: data.mobile ?? "" });
       toast.success("Profile updated.");
+      return true;
     } catch (e) {
       Object.entries(fieldErrors(e)).forEach(([k, m]) => setFieldError(k as keyof Form, { message: m }));
       setError(errorMessage(e));
+      return false;
     }
   };
+  saveRef.current = async () => { let ok = false; await handleSubmit(async (v) => { ok = await onSubmit(v); })(); return ok; };
 
   return (
     <>
+      {guard}
       <PageHeader title="My account" description="Your details and security settings." />
       <div className="grid gap-6 lg:grid-cols-2">
         <Card className="p-6">
